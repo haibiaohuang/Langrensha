@@ -1,0 +1,512 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+    --bg: #0f0f1a;
+    --bg2: #1a1a2e;
+    --bg3: #252542;
+    --text: #e8e8f0;
+    --text2: #a0a0b8;
+    --muted: #6b6b80;
+    --accent: #6366f1;
+    --wolf: #ef4444;
+    --good: #22c55e;
+    --border: rgba(255, 255, 255, 0.1);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html,
+body {
+    height: 100%;
+    overscroll-behavior: none;
+}
+
+body {
+    font-family: 'Noto Sans SC', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1.4;
+    overflow-x: hidden;
+}
+
+.app-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 0 12px;
+    padding-bottom: calc(20px + var(--safe-bottom));
+    min-height: 100%;
+}
+
+/* Header */
+.app-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.logo-icon {
+    font-size: 1.6rem;
+}
+
+.logo h1 {
+    font-size: 1.3rem;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.btn-icon {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: var(--bg3);
+    border-radius: 10px;
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
+/* Setup Panel */
+.setup-panel {
+    padding: 16px 0;
+}
+
+.setup-panel h2 {
+    font-size: 1.2rem;
+    margin-bottom: 16px;
+}
+
+.section-block {
+    margin-bottom: 20px;
+}
+
+.section-block>label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text2);
+    margin-bottom: 8px;
+}
+
+/* Tabs */
+.player-count-tabs {
+    display: flex;
+    gap: 8px;
+}
+
+.tab {
+    flex: 1;
+    padding: 14px;
+    border: 2px solid var(--border);
+    background: var(--bg2);
+    color: var(--text2);
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.tab.active {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-color: transparent;
+    color: white;
+}
+
+/* Config List */
+.config-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.config-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background: var(--bg2);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.config-item.selected {
+    border-color: var(--accent);
+    background: rgba(99, 102, 241, 0.15);
+}
+
+.config-item .name {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.config-item .desc {
+    font-size: 0.85rem;
+    color: var(--text2);
+}
+
+.config-item .roles {
+    font-size: 1.1rem;
+}
+
+/* Toggle */
+.toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: var(--bg2);
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.toggle-row input {
+    display: none;
+}
+
+.toggle {
+    width: 50px;
+    height: 28px;
+    background: var(--bg3);
+    border-radius: 14px;
+    position: relative;
+    transition: background 0.2s;
+}
+
+.toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.toggle-row input:checked+.toggle {
+    background: var(--accent);
+}
+
+.toggle-row input:checked+.toggle::after {
+    transform: translateX(22px);
+}
+
+/* Start Button */
+.btn-start {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-radius: 12px;
+    cursor: pointer;
+    margin-top: 8px;
+}
+
+/* Game Section */
+.game-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+}
+
+.config-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+}
+
+.config-info .badge {
+    padding: 6px 12px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.config-info .sheriff {
+    padding: 6px 10px;
+    background: rgba(234, 179, 8, 0.2);
+    color: #eab308;
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+.btn-small {
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+/* Stats Row */
+.stats-row {
+    display: flex;
+    justify-content: space-around;
+    padding: 10px;
+    background: var(--bg2);
+    border-radius: 10px;
+    margin-bottom: 12px;
+}
+
+.stat {
+    font-size: 0.9rem;
+}
+
+.stat.alive {
+    color: var(--good);
+}
+
+.stat.dead {
+    color: var(--muted);
+}
+
+.stat.wolf {
+    color: var(--wolf);
+}
+
+.stat.good {
+    color: #3b82f6;
+}
+
+/* Players List */
+.players-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.player-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--bg2);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+}
+
+.player-row.dead {
+    opacity: 0.45;
+}
+
+.player-num {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 55px;
+}
+
+.player-num .num {
+    font-size: 1.1rem;
+    font-weight: 700;
+    width: 24px;
+}
+
+.sheriff-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: var(--bg3);
+    border-radius: 6px;
+    opacity: 0.4;
+    font-size: 0.9rem;
+}
+
+.sheriff-btn.active {
+    opacity: 1;
+    background: rgba(234, 179, 8, 0.3);
+}
+
+/* Role Select - Mobile Friendly */
+.role-select {
+    padding: 10px 8px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.95rem;
+    min-width: 85px;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+/* Camp Buttons */
+.camp-btns {
+    display: flex;
+    gap: 4px;
+}
+
+.camp-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    border-radius: 8px;
+    font-size: 1.1rem;
+    opacity: 0.5;
+}
+
+.camp-btn.active {
+    opacity: 1;
+}
+
+.camp-btn.active.good {
+    background: rgba(34, 197, 94, 0.25);
+    border-color: var(--good);
+}
+
+.camp-btn.active.wolf {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: var(--wolf);
+}
+
+/* Note Input */
+.note-input {
+    flex: 1;
+    min-width: 100px;
+    padding: 10px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.95rem;
+}
+
+.note-input::placeholder {
+    color: var(--muted);
+}
+
+/* Status Button */
+.status-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.3rem;
+}
+
+.status-btn.alive {
+    background: rgba(34, 197, 94, 0.2);
+}
+
+.status-btn.dead {
+    background: rgba(107, 114, 128, 0.2);
+}
+
+/* Notes Panel */
+.notes-panel {
+    margin-top: 16px;
+    background: var(--bg2);
+    border-radius: 10px;
+}
+
+.notes-panel summary {
+    padding: 14px 16px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.notes-panel textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 14px;
+    background: var(--bg3);
+    border: none;
+    border-top: 1px solid var(--border);
+    color: var(--text);
+    font-size: 0.95rem;
+    resize: vertical;
+    font-family: inherit;
+}
+
+/* Mobile Optimizations */
+@media (max-width: 480px) {
+    .player-row {
+        padding: 8px 10px;
+    }
+
+    .note-input {
+        width: 100%;
+        order: 10;
+        margin-top: 6px;
+    }
+
+    .role-select {
+        min-width: 75px;
+        padding: 8px 6px;
+        font-size: 0.9rem;
+    }
+
+    .camp-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .status-btn {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+/* Safe area for notched phones */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .app-container {
+        padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    }
+}
+
+/* Prevent zoom on input focus (iOS) */
+input,
+select,
+textarea {
+    font-size: 16px !important;
+}
+
+/* Better touch scrolling */
+.players-list {
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Active states for touch */
+.tab:active,
+.config-item:active,
+.btn-start:active,
+.btn-small:active {
+    transform: scale(0.98);
+}
+
+.camp-btn:active,
+.status-btn:active,
+.sheriff-btn:active {
+    transform: scale(0.9);
+}

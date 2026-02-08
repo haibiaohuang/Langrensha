@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f0f1a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>狼人杀笔记</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">🐺</span>
+                    <h1>狼人杀笔记</h1>
+                </div>
+                <button class="btn-icon" onclick="resetGame()" title="重置">🔄</button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Setup Panel -->
+            <section class="setup-panel" id="setupPanel">
+                <h2>🎮 选择游戏</h2>
+
+                <div class="section-block">
+                    <label>人数</label>
+                    <div class="player-count-tabs" id="playerCountTabs">
+                        <button class="tab" data-count="9">9人</button>
+                        <button class="tab" data-count="10">10人</button>
+                        <button class="tab active" data-count="12">12人</button>
+                    </div>
+                </div>
+
+                <div class="section-block">
+                    <label>板子</label>
+                    <div class="config-list" id="configGrid"></div>
+                </div>
+
+                <div class="section-block">
+                    <label class="toggle-row">
+                        <span>👮 警长</span>
+                        <input type="checkbox" id="sheriffToggle" checked>
+                        <span class="toggle"></span>
+                    </label>
+                </div>
+
+                <button class="btn-start" onclick="startGame()">🎭 开始游戏</button>
+            </section>
+
+            <!-- Game Section -->
+            <section class="game-section" id="gameSection" style="display: none;">
+                <div class="game-top">
+                    <div class="config-info" id="currentConfigInfo"></div>
+                    <button class="btn-small" onclick="showSetup()">换板子</button>
+                </div>
+
+                <div class="stats-row">
+                    <span class="stat alive">💚 <b id="aliveCount">0</b></span>
+                    <span class="stat dead">💀 <b id="deadCount">0</b></span>
+                    <span class="stat wolf">🐺 <b id="wolfCount">0</b></span>
+                    <span class="stat good">😇 <b id="goodCount">0</b></span>
+                </div>
+
+                <div class="players-list" id="playersList"></div>
+
+                <details class="notes-panel">
+                    <summary>📝 笔记</summary>
+                    <textarea id="gameNotes" placeholder="记录信息..."></textarea>
+                </details>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
