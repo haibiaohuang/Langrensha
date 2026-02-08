@@ -47,13 +47,23 @@ let authMode = 'login';
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log('App initializing...');
     // Initialize Supabase
     try {
+        if (!window.supabase) {
+            console.error('Supabase SDK not loaded!');
+            alert('Supabase SDK 加载失败，请检查网络或刷新页面');
+            return;
+        }
         supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('Supabase client initialized');
 
         // Check for existing session
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) console.error('Session error:', error);
+
         if (session) {
+            console.log('User already logged in:', session.user.email);
             currentUser = session.user;
             updateAuthUI();
             await loadCloudHistory();
@@ -61,6 +71,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Listen for auth changes
         supabase.auth.onAuthStateChange(async (event, session) => {
+            console.log('Auth state change:', event, session?.user?.email);
             currentUser = session?.user || null;
             updateAuthUI();
             if (currentUser) {
@@ -69,6 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     } catch (e) {
         console.error('Supabase init error:', e);
+        alert('Supabase 初始化错误: ' + e.message);
     }
 
     loadGameState();
@@ -117,33 +129,51 @@ function switchAuthTab(mode) {
 
 async function handleAuth(e) {
     e.preventDefault();
+    console.log('Auth form submitted', authMode);
+
     const email = document.getElementById('authEmail').value;
     const password = document.getElementById('authPassword').value;
     const btn = document.getElementById('authSubmitBtn');
 
+    if (!email || !password) {
+        alert('请输入邮箱和密码');
+        return;
+    }
+
     btn.disabled = true;
+    const originalText = btn.textContent;
     btn.textContent = '处理中...';
 
     try {
+        if (!supabase) throw new Error('Supabase 未连接');
+
         let result;
         if (authMode === 'login') {
+            console.log('Attempting login for:', email);
             result = await supabase.auth.signInWithPassword({ email, password });
         } else {
+            console.log('Attempting signup for:', email);
             result = await supabase.auth.signUp({ email, password });
         }
+
+        console.log('Auth result:', result);
 
         if (result.error) throw result.error;
 
         if (authMode === 'register' && !result.data.session) {
-            alert('注册成功！请检查邮箱确认链接。');
+            alert('注册验证邮件已发送！\n请去邮箱查看并点击确认链接。\n(注意检查垃圾邮件)');
         } else {
+            // Login successful or auto-login after register
+            console.log('Auth successful');
             hideAuth();
+            alert(authMode === 'login' ? '登录成功！' : '注册成功！');
         }
     } catch (err) {
-        alert('错误: ' + err.message);
+        console.error('Auth error:', err);
+        alert('操作失败: ' + (err.message || err.error_description || '未知错误'));
     } finally {
         btn.disabled = false;
-        btn.textContent = authMode === 'login' ? '登录' : '注册';
+        btn.textContent = originalText;
     }
 }
 
