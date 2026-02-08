@@ -1,3 +1,10 @@
+// ===== Supabase Config =====
+const SUPABASE_URL = 'https://amdgywyzyvfcoziefcgy.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtZGd5d3l6eXZmY296aWVmY2d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1NzcxNzcsImV4cCI6MjA4NjE1MzE3N30.QvsqZjCW8KUzzwKDAEF2Fb8IYCRUTbUtZR69VOkqO04';
+
+let supabase = null;
+let currentUser = null;
+
 // ===== Game Configurations =====
 const GAME_CONFIGS = {
     9: [
@@ -36,11 +43,36 @@ let selectedPlayerCount = 12;
 let selectedConfig = null;
 let hasSheriff = true;
 let gameHistory = [];
+let authMode = 'login';
 
 // ===== Init =====
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize Supabase
+    try {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Check for existing session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            currentUser = session.user;
+            updateAuthUI();
+            await loadCloudHistory();
+        }
+
+        // Listen for auth changes
+        supabase.auth.onAuthStateChange(async (event, session) => {
+            currentUser = session?.user || null;
+            updateAuthUI();
+            if (currentUser) {
+                await loadCloudHistory();
+            }
+        });
+    } catch (e) {
+        console.error('Supabase init error:', e);
+    }
+
     loadGameState();
-    loadHistory();
+    loadLocalHistory();
     setupEventListeners();
     renderConfigOptions();
     if (players.length > 0 && selectedConfig) showGame();
@@ -57,6 +89,100 @@ function setupEventListeners() {
     });
     document.getElementById('gameNotes')?.addEventListener('input', debounce(saveGameState, 500));
     document.getElementById('sheriffToggle')?.addEventListener('change', e => hasSheriff = e.target.checked);
+}
+
+// ===== Auth Functions =====
+function showAuth() {
+    document.getElementById('authPanel').style.display = 'flex';
+    document.getElementById('setupPanel').style.display = 'none';
+    document.getElementById('gameSection').style.display = 'none';
+    document.getElementById('historySection').style.display = 'none';
+}
+
+function hideAuth() {
+    document.getElementById('authPanel').style.display = 'none';
+    if (players.length > 0 && selectedConfig) {
+        showGame();
+    } else {
+        showSetup();
+    }
+}
+
+function switchAuthTab(mode) {
+    authMode = mode;
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.auth-tab:${mode === 'login' ? 'first-child' : 'last-child'}`).classList.add('active');
+    document.getElementById('authSubmitBtn').textContent = mode === 'login' ? '登录' : '注册';
+}
+
+async function handleAuth(e) {
+    e.preventDefault();
+    const email = document.getElementById('authEmail').value;
+    const password = document.getElementById('authPassword').value;
+    const btn = document.getElementById('authSubmitBtn');
+
+    btn.disabled = true;
+    btn.textContent = '处理中...';
+
+    try {
+        let result;
+        if (authMode === 'login') {
+            result = await supabase.auth.signInWithPassword({ email, password });
+        } else {
+            result = await supabase.auth.signUp({ email, password });
+        }
+
+        if (result.error) throw result.error;
+
+        if (authMode === 'register' && !result.data.session) {
+            alert('注册成功！请检查邮箱确认链接。');
+        } else {
+            hideAuth();
+        }
+    } catch (err) {
+        alert('错误: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = authMode === 'login' ? '登录' : '注册';
+    }
+}
+
+async function signInWithGoogle() {
+    try {
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: window.location.origin + window.location.pathname
+            }
+        });
+        if (error) throw error;
+    } catch (err) {
+        alert('Google登录失败: ' + err.message);
+    }
+}
+
+async function signOut() {
+    await supabase.auth.signOut();
+    currentUser = null;
+    updateAuthUI();
+    gameHistory = [];
+    loadLocalHistory();
+    renderHistory();
+}
+
+function updateAuthUI() {
+    const authBtn = document.getElementById('authBtn');
+    const userInfo = document.getElementById('userInfo');
+    const userName = document.getElementById('userName');
+
+    if (currentUser) {
+        authBtn.style.display = 'none';
+        userInfo.style.display = 'flex';
+        userName.textContent = currentUser.email?.split('@')[0] || '用户';
+    } else {
+        authBtn.style.display = 'block';
+        userInfo.style.display = 'none';
+    }
 }
 
 // ===== Config =====
@@ -91,6 +217,7 @@ function startGame() {
 }
 
 function showGame() {
+    document.getElementById('authPanel').style.display = 'none';
     document.getElementById('setupPanel').style.display = 'none';
     document.getElementById('gameSection').style.display = 'block';
     document.getElementById('historySection').style.display = 'none';
@@ -103,6 +230,7 @@ function showGame() {
 }
 
 function showSetup() {
+    document.getElementById('authPanel').style.display = 'none';
     document.getElementById('setupPanel').style.display = 'block';
     document.getElementById('gameSection').style.display = 'none';
     document.getElementById('historySection').style.display = 'none';
@@ -110,9 +238,18 @@ function showSetup() {
 
 // ===== History =====
 function showHistory() {
+    document.getElementById('authPanel').style.display = 'none';
     document.getElementById('setupPanel').style.display = 'none';
     document.getElementById('gameSection').style.display = 'none';
     document.getElementById('historySection').style.display = 'block';
+
+    const syncStatus = document.getElementById('syncStatus');
+    if (currentUser) {
+        syncStatus.innerHTML = `<span class="synced">☁️ 已登录: ${currentUser.email?.split('@')[0]} - 数据云端同步</span>`;
+    } else {
+        syncStatus.innerHTML = `<span class="local">📱 未登录 - 数据仅保存在本地</span>`;
+    }
+
     renderHistory();
 }
 
@@ -125,15 +262,15 @@ function hideHistory() {
     }
 }
 
-function saveToHistory() {
+async function saveToHistory() {
     if (!selectedConfig || players.length === 0) return;
 
     const game = {
         id: Date.now(),
         date: new Date().toLocaleString('zh-CN'),
-        config: selectedConfig.name,
-        playerCount: players.length,
-        hasSheriff: hasSheriff,
+        config_name: selectedConfig.name,
+        player_count: players.length,
+        has_sheriff: hasSheriff,
         players: JSON.parse(JSON.stringify(players)),
         notes: document.getElementById('gameNotes')?.value || '',
         wolves: players.filter(p => p.camp === 'wolf').length,
@@ -141,18 +278,83 @@ function saveToHistory() {
         alive: players.filter(p => p.alive).length
     };
 
-    gameHistory.unshift(game);
-    if (gameHistory.length > 20) gameHistory.pop(); // 最多保存20局
+    // Save to cloud if logged in
+    if (currentUser && supabase) {
+        try {
+            const { error } = await supabase
+                .from('game_history')
+                .insert({
+                    user_id: currentUser.id,
+                    config_name: game.config_name,
+                    player_count: game.player_count,
+                    has_sheriff: game.has_sheriff,
+                    players: game.players,
+                    notes: game.notes,
+                    wolves: game.wolves,
+                    good: game.good,
+                    alive: game.alive
+                });
 
-    localStorage.setItem('werewolfHistory', JSON.stringify(gameHistory));
-    alert('✅ 已保存到历史记录！');
+            if (error) throw error;
+            await loadCloudHistory();
+            alert('✅ 已保存到云端！');
+        } catch (err) {
+            console.error('Cloud save error:', err);
+            // Fallback to local
+            saveLocalHistory(game);
+            alert('⚠️ 云端保存失败，已保存到本地');
+        }
+    } else {
+        saveLocalHistory(game);
+        alert('✅ 已保存到本地！(登录后可云端同步)');
+    }
 }
 
-function loadHistory() {
+function saveLocalHistory(game) {
+    gameHistory.unshift(game);
+    if (gameHistory.length > 20) gameHistory.pop();
+    localStorage.setItem('werewolfHistory', JSON.stringify(gameHistory));
+    renderHistory();
+}
+
+function loadLocalHistory() {
     try {
         gameHistory = JSON.parse(localStorage.getItem('werewolfHistory') || '[]');
     } catch (e) {
         gameHistory = [];
+    }
+}
+
+async function loadCloudHistory() {
+    if (!currentUser || !supabase) return;
+
+    try {
+        const { data, error } = await supabase
+            .from('game_history')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+        if (error) throw error;
+
+        gameHistory = (data || []).map(g => ({
+            id: g.id,
+            date: new Date(g.created_at).toLocaleString('zh-CN'),
+            config_name: g.config_name,
+            player_count: g.player_count,
+            has_sheriff: g.has_sheriff,
+            players: g.players,
+            notes: g.notes,
+            wolves: g.wolves,
+            good: g.good,
+            alive: g.alive,
+            isCloud: true
+        }));
+
+        renderHistory();
+    } catch (err) {
+        console.error('Cloud load error:', err);
     }
 }
 
@@ -164,9 +366,9 @@ function renderHistory() {
     }
 
     list.innerHTML = gameHistory.map(g => `
-        <div class="history-item" onclick="viewHistoryGame(${g.id})">
+        <div class="history-item" onclick="viewHistoryGame('${g.id}')">
             <div class="history-item-header">
-                <span class="history-config">${g.playerCount}人 ${g.config}</span>
+                <span class="history-config">${g.player_count}人 ${g.config_name} ${g.isCloud ? '☁️' : '📱'}</span>
                 <span class="history-date">${g.date}</span>
             </div>
             <div class="history-item-stats">
@@ -174,18 +376,17 @@ function renderHistory() {
                 <span>🐺${g.wolves}狼</span>
                 <span>😇${g.good}好人</span>
             </div>
-            <button class="history-delete" onclick="event.stopPropagation(); deleteHistory(${g.id})">🗑️</button>
+            <button class="history-delete" onclick="event.stopPropagation(); deleteHistory('${g.id}', ${g.isCloud || false})">🗑️</button>
         </div>
     `).join('');
 }
 
-function viewHistoryGame(id) {
-    const game = gameHistory.find(g => g.id === id);
+async function viewHistoryGame(id) {
+    const game = gameHistory.find(g => String(g.id) === String(id));
     if (!game) return;
 
-    // Find the config
     for (const count in GAME_CONFIGS) {
-        const cfg = GAME_CONFIGS[count].find(c => c.name === game.config);
+        const cfg = GAME_CONFIGS[count].find(c => c.name === game.config_name);
         if (cfg) {
             selectedConfig = cfg;
             selectedPlayerCount = parseInt(count);
@@ -194,7 +395,7 @@ function viewHistoryGame(id) {
     }
 
     players = game.players;
-    hasSheriff = game.hasSheriff;
+    hasSheriff = game.has_sheriff;
     document.getElementById('gameNotes').value = game.notes || '';
 
     showGame();
@@ -202,11 +403,21 @@ function viewHistoryGame(id) {
     updateStats();
 }
 
-function deleteHistory(id) {
+async function deleteHistory(id, isCloud) {
     if (!confirm('删除这条记录？')) return;
-    gameHistory = gameHistory.filter(g => g.id !== id);
-    localStorage.setItem('werewolfHistory', JSON.stringify(gameHistory));
-    renderHistory();
+
+    if (isCloud && currentUser && supabase) {
+        try {
+            await supabase.from('game_history').delete().eq('id', id);
+            await loadCloudHistory();
+        } catch (err) {
+            console.error('Delete error:', err);
+        }
+    } else {
+        gameHistory = gameHistory.filter(g => String(g.id) !== String(id));
+        localStorage.setItem('werewolfHistory', JSON.stringify(gameHistory));
+        renderHistory();
+    }
 }
 
 // ===== Players =====
