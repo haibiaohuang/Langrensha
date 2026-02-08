@@ -75,6 +75,11 @@ body {
     -webkit-text-fill-color: transparent;
 }
 
+.header-btns {
+    display: flex;
+    gap: 8px;
+}
+
 .btn-icon {
     width: 40px;
     height: 40px;
@@ -233,6 +238,12 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 12px 0;
+    gap: 10px;
+}
+
+.game-top-btns {
+    display: flex;
+    gap: 8px;
 }
 
 .config-info {
@@ -265,6 +276,13 @@ body {
     border-radius: 8px;
     font-size: 0.85rem;
     cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-small.save {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: var(--good);
+    color: var(--good);
 }
 
 /* Stats Row */
@@ -347,7 +365,7 @@ body {
     background: rgba(234, 179, 8, 0.3);
 }
 
-/* Role Select - Mobile Friendly */
+/* Role Select */
 .role-select {
     padding: 10px 8px;
     background: var(--bg3);
@@ -449,6 +467,92 @@ body {
     font-family: inherit;
 }
 
+/* History Section */
+.history-section {
+    padding: 16px 0;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.history-header h2 {
+    font-size: 1.2rem;
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.history-empty {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+}
+
+.history-item {
+    background: var(--bg2);
+    border-radius: 10px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    position: relative;
+    transition: all 0.15s;
+}
+
+.history-item:hover {
+    border-color: var(--accent);
+}
+
+.history-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.history-config {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.history-date {
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+.history-item-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 0.85rem;
+    color: var(--text2);
+}
+
+.history-delete {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 1rem;
+    opacity: 0.5;
+    cursor: pointer;
+}
+
+.history-delete:hover {
+    opacity: 1;
+    background: rgba(239, 68, 68, 0.2);
+}
+
 /* Mobile Optimizations */
 @media (max-width: 480px) {
     .player-row {
@@ -476,28 +580,28 @@ body {
         width: 36px;
         height: 36px;
     }
+
+    .game-top {
+        flex-wrap: wrap;
+    }
 }
 
-/* Safe area for notched phones */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
     .app-container {
         padding-bottom: calc(20px + env(safe-area-inset-bottom));
     }
 }
 
-/* Prevent zoom on input focus (iOS) */
 input,
 select,
 textarea {
     font-size: 16px !important;
 }
 
-/* Better touch scrolling */
 .players-list {
     -webkit-overflow-scrolling: touch;
 }
 
-/* Active states for touch */
 .tab:active,
 .config-item:active,
 .btn-start:active,

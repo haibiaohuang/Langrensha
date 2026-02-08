@@ -35,10 +35,12 @@ let players = [];
 let selectedPlayerCount = 12;
 let selectedConfig = null;
 let hasSheriff = true;
+let gameHistory = [];
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
     loadGameState();
+    loadHistory();
     setupEventListeners();
     renderConfigOptions();
     if (players.length > 0 && selectedConfig) showGame();
@@ -71,7 +73,6 @@ function renderConfigOptions() {
 
 function selectConfig(id) {
     selectedConfig = (GAME_CONFIGS[selectedPlayerCount] || []).find(c => c.id === id);
-    document.querySelectorAll('.config-item').forEach(el => el.classList.toggle('selected', el.onclick.toString().includes(id)));
     renderConfigOptions();
 }
 
@@ -92,6 +93,7 @@ function startGame() {
 function showGame() {
     document.getElementById('setupPanel').style.display = 'none';
     document.getElementById('gameSection').style.display = 'block';
+    document.getElementById('historySection').style.display = 'none';
     const total = selectedConfig.wolves.length + selectedConfig.gods.length + selectedConfig.villagers;
     document.getElementById('currentConfigInfo').innerHTML = `
         <span class="badge">${total}人 ${selectedConfig.name}</span>
@@ -103,6 +105,108 @@ function showGame() {
 function showSetup() {
     document.getElementById('setupPanel').style.display = 'block';
     document.getElementById('gameSection').style.display = 'none';
+    document.getElementById('historySection').style.display = 'none';
+}
+
+// ===== History =====
+function showHistory() {
+    document.getElementById('setupPanel').style.display = 'none';
+    document.getElementById('gameSection').style.display = 'none';
+    document.getElementById('historySection').style.display = 'block';
+    renderHistory();
+}
+
+function hideHistory() {
+    document.getElementById('historySection').style.display = 'none';
+    if (players.length > 0 && selectedConfig) {
+        showGame();
+    } else {
+        showSetup();
+    }
+}
+
+function saveToHistory() {
+    if (!selectedConfig || players.length === 0) return;
+
+    const game = {
+        id: Date.now(),
+        date: new Date().toLocaleString('zh-CN'),
+        config: selectedConfig.name,
+        playerCount: players.length,
+        hasSheriff: hasSheriff,
+        players: JSON.parse(JSON.stringify(players)),
+        notes: document.getElementById('gameNotes')?.value || '',
+        wolves: players.filter(p => p.camp === 'wolf').length,
+        good: players.filter(p => p.camp === 'good').length,
+        alive: players.filter(p => p.alive).length
+    };
+
+    gameHistory.unshift(game);
+    if (gameHistory.length > 20) gameHistory.pop(); // 最多保存20局
+
+    localStorage.setItem('werewolfHistory', JSON.stringify(gameHistory));
+    alert('✅ 已保存到历史记录！');
+}
+
+function loadHistory() {
+    try {
+        gameHistory = JSON.parse(localStorage.getItem('werewolfHistory') || '[]');
+    } catch (e) {
+        gameHistory = [];
+    }
+}
+
+function renderHistory() {
+    const list = document.getElementById('historyList');
+    if (gameHistory.length === 0) {
+        list.innerHTML = '<div class="history-empty">暂无历史记录</div>';
+        return;
+    }
+
+    list.innerHTML = gameHistory.map(g => `
+        <div class="history-item" onclick="viewHistoryGame(${g.id})">
+            <div class="history-item-header">
+                <span class="history-config">${g.playerCount}人 ${g.config}</span>
+                <span class="history-date">${g.date}</span>
+            </div>
+            <div class="history-item-stats">
+                <span>💚${g.alive}存活</span>
+                <span>🐺${g.wolves}狼</span>
+                <span>😇${g.good}好人</span>
+            </div>
+            <button class="history-delete" onclick="event.stopPropagation(); deleteHistory(${g.id})">🗑️</button>
+        </div>
+    `).join('');
+}
+
+function viewHistoryGame(id) {
+    const game = gameHistory.find(g => g.id === id);
+    if (!game) return;
+
+    // Find the config
+    for (const count in GAME_CONFIGS) {
+        const cfg = GAME_CONFIGS[count].find(c => c.name === game.config);
+        if (cfg) {
+            selectedConfig = cfg;
+            selectedPlayerCount = parseInt(count);
+            break;
+        }
+    }
+
+    players = game.players;
+    hasSheriff = game.hasSheriff;
+    document.getElementById('gameNotes').value = game.notes || '';
+
+    showGame();
+    renderPlayers();
+    updateStats();
+}
+
+function deleteHistory(id) {
+    if (!confirm('删除这条记录？')) return;
+    gameHistory = gameHistory.filter(g => g.id !== id);
+    localStorage.setItem('werewolfHistory', JSON.stringify(gameHistory));
+    renderHistory();
 }
 
 // ===== Players =====
@@ -180,7 +284,7 @@ function updateStats() {
 }
 
 function resetGame() {
-    if (confirm('重置游戏？')) {
+    if (confirm('重置当前游戏？')) {
         players = [];
         selectedConfig = null;
         document.getElementById('gameNotes').value = '';
