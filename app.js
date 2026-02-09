@@ -1,6 +1,5 @@
 // ===== Debug Alert =====
-// 如果你看不到这个弹窗，说明 app.js 没有加载成功！
-alert('app.js 已加载！如果之后点击没反应，请检查控制台报错。');
+window.alert('DEBUG MODE: app.js loaded successfully!\\n如果不弹这个窗说明脚本根本没加载。');
 
 // ===== Supabase Config =====
 const SUPABASE_URL = 'https://amdgywyzyvfcoziefcgy.supabase.co';

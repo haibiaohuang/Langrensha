@@ -141,9 +141,21 @@
     </div>
 
     <!-- Try unpkg as it might be more reliable in some regions, or use a specific version -->
-    <script src="https://unpkg.com/@supabase/supabase-js@2"
-        onerror="alert('Supabase SDK 加载失败！功能可能受限。建议检查网络或使用科学上网。')"></script>
-    <script src="app.js" onerror="alert('app.js 加载失败！请检查文件是否存在。')"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+    <!-- Load app.js with a timestamp to force refresh -->
+    <script>
+        document.write('<script src="app.js?v=' + Date.now() + '"><\/script>');
+    </script>
+
+    <script>
+        // Check if app.js loaded
+        window.onload = function () {
+            if (typeof startGame !== 'function') {
+                alert('⚠️ 严重错误：游戏脚本(app.js)未加载！\n请尝试清除浏览器缓存 (Ctrl+Shift+R) 或更换浏览器。');
+            }
+        };
+    </script>
 </body>
 
 </html>
