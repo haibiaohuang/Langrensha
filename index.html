@@ -13,7 +13,7 @@
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Supabase script moved to bottom -->
 </head>
 
 <body>
@@ -140,7 +140,10 @@
         </main>
     </div>
 
-    <script src="app.js"></script>
+    <!-- Try unpkg as it might be more reliable in some regions, or use a specific version -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2"
+        onerror="alert('Supabase SDK 加载失败！功能可能受限。建议检查网络或使用科学上网。')"></script>
+    <script src="app.js" onerror="alert('app.js 加载失败！请检查文件是否存在。')"></script>
 </body>
 
 </html>

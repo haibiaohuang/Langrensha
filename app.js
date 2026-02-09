@@ -1,3 +1,7 @@
+// ===== Debug Alert =====
+// 如果你看不到这个弹窗，说明 app.js 没有加载成功！
+alert('app.js 已加载！如果之后点击没反应，请检查控制台报错。');
+
 // ===== Supabase Config =====
 const SUPABASE_URL = 'https://amdgywyzyvfcoziefcgy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtZGd5d3l6eXZmY296aWVmY2d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1NzcxNzcsImV4cCI6MjA4NjE1MzE3N30.QvsqZjCW8KUzzwKDAEF2Fb8IYCRUTbUtZR69VOkqO04';
@@ -48,46 +52,52 @@ let authMode = 'login';
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('App initializing...');
-    // Initialize Supabase
+
+    // 1. Load Local State First (Essential)
     try {
-        if (!window.supabase) {
-            console.error('Supabase SDK not loaded!');
-            alert('Supabase SDK 加载失败，请检查网络或刷新页面');
-            return;
-        }
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        console.log('Supabase client initialized');
-
-        // Check for existing session
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) console.error('Session error:', error);
-
-        if (session) {
-            console.log('User already logged in:', session.user.email);
-            currentUser = session.user;
-            updateAuthUI();
-            await loadCloudHistory();
-        }
-
-        // Listen for auth changes
-        supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log('Auth state change:', event, session?.user?.email);
-            currentUser = session?.user || null;
-            updateAuthUI();
-            if (currentUser) {
-                await loadCloudHistory();
-            }
-        });
+        loadGameState();
+        loadLocalHistory();
+        setupEventListeners();
+        renderConfigOptions();
+        if (players.length > 0 && selectedConfig) showGame();
+        console.log('Local init done');
     } catch (e) {
-        console.error('Supabase init error:', e);
-        alert('Supabase 初始化错误: ' + e.message);
+        console.error('Local init error:', e);
+        alert('本地初始化失败: ' + e.message);
     }
 
-    loadGameState();
-    loadLocalHistory();
-    setupEventListeners();
-    renderConfigOptions();
-    if (players.length > 0 && selectedConfig) showGame();
+    // 2. Initialize Supabase (Optional Enhancement)
+    try {
+        if (!window.supabase) {
+            console.warn('Supabase SDK missing, running in offline mode');
+        } else {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log('Supabase client initialized');
+
+            // Check for existing session
+            const { data: { session }, error } = await supabase.auth.getSession();
+            if (error) console.error('Session error:', error);
+
+            if (session) {
+                console.log('User already logged in:', session.user.email);
+                currentUser = session.user;
+                updateAuthUI();
+                await loadCloudHistory();
+            }
+
+            // Listen for auth changes
+            supabase.auth.onAuthStateChange(async (event, session) => {
+                console.log('Auth state change:', event, session?.user?.email);
+                currentUser = session?.user || null;
+                updateAuthUI();
+                if (currentUser) {
+                    await loadCloudHistory();
+                }
+            });
+        }
+    } catch (e) {
+        console.error('Supabase init error:', e);
+    }
 });
 
 function setupEventListeners() {
