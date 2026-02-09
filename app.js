@@ -2,11 +2,11 @@
 window.alert('DEBUG MODE: app.js loaded successfully!\\n如果不弹这个窗说明脚本根本没加载。');
 
 // ===== Supabase Config =====
-const SUPABASE_URL = 'https://amdgywyzyvfcoziefcgy.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtZGd5d3l6eXZmY296aWVmY2d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1NzcxNzcsImV4cCI6MjA4NjE1MzE3N30.QvsqZjCW8KUzzwKDAEF2Fb8IYCRUTbUtZR69VOkqO04';
+var SUPABASE_URL = 'https://amdgywyzyvfcoziefcgy.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtZGd5d3l6eXZmY296aWVmY2d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1NzcxNzcsImV4cCI6MjA4NjE1MzE3N30.QvsqZjCW8KUzzwKDAEF2Fb8IYCRUTbUtZR69VOkqO04';
 
-let supabase = null;
-let currentUser = null;
+var supabaseClient = null;
+var currentUser = null;
 
 // ===== Game Configurations =====
 const GAME_CONFIGS = {
@@ -70,11 +70,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!window.supabase) {
             console.warn('Supabase SDK missing, running in offline mode');
         } else {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             console.log('Supabase client initialized');
 
             // Check for existing session
-            const { data: { session }, error } = await supabase.auth.getSession();
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error) console.error('Session error:', error);
 
             if (session) {
@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             // Listen for auth changes
-            supabase.auth.onAuthStateChange(async (event, session) => {
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 console.log('Auth state change:', event, session?.user?.email);
                 currentUser = session?.user || null;
                 updateAuthUI();
@@ -154,15 +154,15 @@ async function handleAuth(e) {
     btn.textContent = '处理中...';
 
     try {
-        if (!supabase) throw new Error('Supabase 未连接');
+        if (!supabaseClient) throw new Error('Supabase 未连接');
 
         let result;
         if (authMode === 'login') {
             console.log('Attempting login for:', email);
-            result = await supabase.auth.signInWithPassword({ email, password });
+            result = await supabaseClient.auth.signInWithPassword({ email, password });
         } else {
             console.log('Attempting signup for:', email);
-            result = await supabase.auth.signUp({ email, password });
+            result = await supabaseClient.auth.signUp({ email, password });
         }
 
         console.log('Auth result:', result);
@@ -188,7 +188,7 @@ async function handleAuth(e) {
 
 async function signInWithGoogle() {
     try {
-        const { error } = await supabase.auth.signInWithOAuth({
+        const { error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
             options: {
                 redirectTo: window.location.origin + window.location.pathname
@@ -201,7 +201,7 @@ async function signInWithGoogle() {
 }
 
 async function signOut() {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
     currentUser = null;
     updateAuthUI();
     gameHistory = [];
@@ -318,9 +318,9 @@ async function saveToHistory() {
     };
 
     // Save to cloud if logged in
-    if (currentUser && supabase) {
+    if (currentUser && supabaseClient) {
         try {
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('game_history')
                 .insert({
                     user_id: currentUser.id,
@@ -365,10 +365,10 @@ function loadLocalHistory() {
 }
 
 async function loadCloudHistory() {
-    if (!currentUser || !supabase) return;
+    if (!currentUser || !supabaseClient) return;
 
     try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('game_history')
             .select('*')
             .eq('user_id', currentUser.id)
@@ -445,9 +445,9 @@ async function viewHistoryGame(id) {
 async function deleteHistory(id, isCloud) {
     if (!confirm('删除这条记录？')) return;
 
-    if (isCloud && currentUser && supabase) {
+    if (isCloud && currentUser && supabaseClient) {
         try {
-            await supabase.from('game_history').delete().eq('id', id);
+            await supabaseClient.from('game_history').delete().eq('id', id);
             await loadCloudHistory();
         } catch (err) {
             console.error('Delete error:', err);
