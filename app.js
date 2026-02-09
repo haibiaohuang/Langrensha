@@ -191,7 +191,8 @@ async function signInWithGoogle() {
         const { error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: window.location.origin + window.location.pathname
+                // 动态获取当前网址，确保回调到正确的页面 (GitHub Pages 或本地)
+                redirectTo: window.location.href
             }
         });
         if (error) throw error;
