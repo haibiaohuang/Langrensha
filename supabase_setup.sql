@@ -13,6 +13,8 @@ create table if not exists game_history (
   wolves int default 0,
   good int default 0,
   alive int default 0,
+  result text,
+  game_events jsonb,
   created_at timestamp with time zone default now()
 );
 
@@ -34,3 +36,7 @@ create policy "Users can insert own game history" on game_history
 -- 策略: 用户只能删除自己的数据
 create policy "Users can delete own game history" on game_history
   for delete using (auth.uid() = user_id);
+
+-- 新增列 (对已有表执行迁移)
+ALTER TABLE game_history ADD COLUMN IF NOT EXISTS result text;
+ALTER TABLE game_history ADD COLUMN IF NOT EXISTS game_events jsonb;

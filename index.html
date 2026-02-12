@@ -13,26 +13,17 @@
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
-    <!-- Supabase script moved to bottom -->
     <script>
-        // Global Error Handler - Catch ALL errors
         window.onerror = function (msg, url, line, col, error) {
-            alert('❌ JS错误:\n' + msg + '\nFile: ' + url + '\nLine: ' + line);
+            console.error('JS Error:', msg, 'at', url, ':', line);
             return false;
         };
-        // Resource Error Handler - Catch 404s
-        window.addEventListener('error', function (e) {
-            if (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK') {
-                console.log('Resource failed:', e.target.src || e.target.href);
-            }
-        }, true);
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
     <div class="app-container">
-        <!-- ... (header content remains same) ... -->
         <header class="app-header">
             <div class="header-content">
                 <div class="logo">
@@ -40,7 +31,7 @@
                     <h1>狼人杀笔记</h1>
                 </div>
                 <div class="header-btns">
-                    <div class="user-info" id="userInfo" style="display:none;">
+                    <div class="user-info" id="userInfo">
                         <span id="userName"></span>
                         <button class="btn-icon small" onclick="signOut()" title="退出">🚪</button>
                     </div>
@@ -53,7 +44,7 @@
 
         <main class="main-content">
             <!-- Auth Panel -->
-            <section class="auth-panel" id="authPanel" style="display: none;">
+            <section class="view-panel auth-panel" id="authPanel">
                 <div class="auth-card">
                     <h2>🔐 登录 / 注册</h2>
                     <p class="auth-desc">登录后数据将云端同步，可跨设备使用</p>
@@ -90,7 +81,7 @@
             </section>
 
             <!-- Setup Panel -->
-            <section class="setup-panel" id="setupPanel">
+            <section class="view-panel view-active setup-panel" id="setupPanel">
                 <h2>🎮 选择游戏</h2>
 
                 <div class="section-block">
@@ -119,13 +110,20 @@
             </section>
 
             <!-- Game Section -->
-            <section class="game-section" id="gameSection" style="display: none;">
+            <section class="view-panel game-section" id="gameSection">
                 <div class="game-top">
                     <div class="config-info" id="currentConfigInfo"></div>
                     <div class="game-top-btns">
-                        <button class="btn-small save" onclick="saveToHistory()">💾 保存</button>
+                        <button class="btn-small" onclick="openQuickReveal()">🃏 翻牌</button>
+                        <button class="btn-small save" onclick="confirmSaveWithResult()">💾 保存</button>
                         <button class="btn-small" onclick="showSetup()">换板子</button>
                     </div>
+                </div>
+
+                <div class="round-tracker night" id="roundTracker">
+                    <button class="round-btn" onclick="prevPhase()">◀</button>
+                    <span class="round-display" id="roundDisplay">第1夜</span>
+                    <button class="round-btn" onclick="nextPhase()">▶</button>
                 </div>
 
                 <div class="stats-row">
@@ -144,7 +142,7 @@
             </section>
 
             <!-- History Section -->
-            <section class="history-section" id="historySection" style="display: none;">
+            <section class="view-panel history-section" id="historySection">
                 <div class="history-header">
                     <h2>📜 历史记录</h2>
                     <button class="btn-small" onclick="hideHistory()">返回</button>
@@ -155,18 +153,74 @@
         </main>
     </div>
 
-    <!-- Force Load app.js -->
-    <script src="app.js?v=debug2"></script>
-    <script>
-        if (typeof startGame !== 'function') {
-            // Try one more fallback using fetch to see if it's 404
-            fetch('app.js').then(res => {
-                if (!res.ok) alert('⚠️ 404错误: app.js 找不到！请检查文件是否推送。');
-            }).catch(e => {
-                alert('⚠️ 网络错误: 无法请求 app.js\n' + e.message);
-            });
-        }
-    </script>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Confirm Dialog Overlay -->
+    <div class="overlay" id="confirmOverlay">
+        <div class="confirm-dialog">
+            <p class="confirm-message" id="confirmMessage"></p>
+            <div class="confirm-btns">
+                <button class="confirm-btn cancel" onclick="handleConfirmNo()">取消</button>
+                <button class="confirm-btn ok" onclick="handleConfirmYes()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Death Reason Picker -->
+    <div class="overlay" id="deathPickerOverlay">
+        <div class="bottom-sheet">
+            <h3>选择死因</h3>
+            <div class="death-options">
+                <button class="death-option-btn" onclick="confirmDeath('vote')">🗳️ 投票出局</button>
+                <button class="death-option-btn" onclick="confirmDeath('wolf_kill')">🐺 狼刀</button>
+                <button class="death-option-btn" onclick="confirmDeath('witch_poison')">🧙‍♀️ 女巫毒杀</button>
+                <button class="death-option-btn" onclick="confirmDeath('hunter_shot')">🏹 猎人带走</button>
+                <button class="death-option-btn" onclick="confirmDeath('white_wolf_boom')">👑 白狼王自爆</button>
+                <button class="death-option-btn" onclick="confirmDeath('other')">❓ 其他</button>
+            </div>
+            <button class="sheet-cancel" onclick="cancelDeathPicker()">取消</button>
+        </div>
+    </div>
+
+    <!-- Game Result Picker -->
+    <div class="overlay" id="resultPickerOverlay">
+        <div class="bottom-sheet">
+            <h3>游戏结果</h3>
+            <div class="result-options">
+                <button class="result-option-btn good-win" onclick="saveWithResult('good_win')">😇 好人胜</button>
+                <button class="result-option-btn wolf-win" onclick="saveWithResult('wolf_win')">🐺 狼人胜</button>
+                <button class="result-option-btn draw-result" onclick="saveWithResult('draw')">🤝 平局</button>
+                <button class="result-option-btn skip-result" onclick="saveWithResult(null)">⏭️ 跳过</button>
+            </div>
+            <button class="sheet-cancel" onclick="cancelResultPicker()">取消</button>
+        </div>
+    </div>
+
+    <!-- Quick Reveal Overlay -->
+    <div class="overlay" id="quickRevealOverlay">
+        <div class="reveal-container">
+            <div class="reveal-header">
+                <h3>🃏 快速翻牌</h3>
+                <button class="btn-close" onclick="closeQuickReveal()">✕</button>
+            </div>
+            <div class="reveal-grid" id="revealGrid"></div>
+        </div>
+    </div>
+
+    <!-- Reveal Role Picker (sub-overlay) -->
+    <div class="overlay" id="revealRolePicker">
+        <div class="bottom-sheet">
+            <h3>选择角色</h3>
+            <div class="reveal-roles" id="revealRoles"></div>
+            <button class="sheet-cancel" onclick="closeRevealRolePicker()">取消</button>
+        </div>
+    </div>
+
+    <!-- Undo Float Button -->
+    <button class="undo-float" id="undoBtn" onclick="performUndo()">↩️ 撤销</button>
+
+    <script src="app.js"></script>
 </body>
 
 </html>
