@@ -73,7 +73,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
         // Preload speech voices
-        if (window.speechSynthesis) speechSynthesis.getVoices();
+        if (window.speechSynthesis) {
+            try { speechSynthesis.getVoices(); } catch (e) {}
+        }
 
         loadGameState();
         loadLocalHistory();
@@ -1116,7 +1118,9 @@ function openJudgeAssistant() {
 }
 
 function closeJudgeAssistant() {
-    speechSynthesis.cancel();
+    if (window.speechSynthesis) {
+        try { speechSynthesis.cancel(); } catch (e) {}
+    }
     document.getElementById('judgeOverlay').classList.remove('overlay-active');
 }
 
@@ -1544,21 +1548,27 @@ function judgeSkipAction(actionType) {
 }
 
 function judgeSpeak(text) {
-    if (!judgeVoiceEnabled) return;
-    speechSynthesis.cancel();
-    var u = new SpeechSynthesisUtterance(text);
-    u.lang = 'zh-CN';
-    u.rate = 0.9;
-    var voices = speechSynthesis.getVoices();
-    var zhVoice = voices.find(function (v) { return v.lang.startsWith('zh'); });
-    if (zhVoice) u.voice = zhVoice;
-    speechSynthesis.speak(u);
+    if (!judgeVoiceEnabled || !window.speechSynthesis) return;
+    try {
+        speechSynthesis.cancel();
+        var u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-CN';
+        u.rate = 0.9;
+        var voices = speechSynthesis.getVoices();
+        var zhVoice = voices.find(function (v) { return v.lang.startsWith('zh'); });
+        if (zhVoice) u.voice = zhVoice;
+        speechSynthesis.speak(u);
+    } catch (e) {
+        console.warn('Speech synthesis error:', e);
+    }
 }
 
 function toggleJudgeVoice() {
     judgeVoiceEnabled = !judgeVoiceEnabled;
     document.getElementById('judgeVoiceBtn').textContent = judgeVoiceEnabled ? '🔊' : '🔇';
-    if (!judgeVoiceEnabled) speechSynthesis.cancel();
+    if (!judgeVoiceEnabled && window.speechSynthesis) {
+        try { speechSynthesis.cancel(); } catch (e) {}
+    }
     showToast(judgeVoiceEnabled ? '语音已开启' : '语音已关闭', 'info');
 }
 
