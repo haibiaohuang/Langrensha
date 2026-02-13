@@ -308,7 +308,7 @@ function startGame() {
     const total = selectedConfig.wolves.length + selectedConfig.gods.length + selectedConfig.villagers;
     players = Array.from({ length: total }, (_, i) => ({
         id: i + 1, role: 'unknown', camp: 'unknown', alive: true, sheriff: false, note: '',
-        deathReason: null, deathRound: null, deathPhase: null
+        deathReason: null, deathRound: null, deathPhase: null, confirmed: false
     }));
     currentRound = 1;
     currentPhase = 'night';
@@ -492,7 +492,7 @@ function closeQuickReveal() {
 function renderRevealGrid() {
     var grid = document.getElementById('revealGrid');
     grid.innerHTML = players.map(function (p) {
-        var campClass = p.camp === 'wolf' ? 'reveal-wolf' : p.camp === 'good' ? 'reveal-good' : '';
+        var campClass = p.camp === 'wolf' ? 'reveal-wolf' : p.camp === 'god' ? 'reveal-god' : p.camp === 'villager' ? 'reveal-villager' : '';
         var roleInfo = p.role !== 'unknown' ? ROLES[p.role] : null;
         return '<div class="reveal-card ' + campClass + '" onclick="revealTapPlayer(' + p.id + ')">' +
             '<span class="reveal-num">' + p.id + '</span>' +
@@ -518,7 +518,8 @@ function revealSetRole(playerId, role) {
         p.role = role;
         var camp = ROLES[role]?.camp;
         if (camp === 'wolf') p.camp = 'wolf';
-        else if (camp === 'god' || role === 'villager') p.camp = 'good';
+        else if (camp === 'god') p.camp = 'god';
+        else if (camp === 'villager') p.camp = 'villager';
     }
     closeRevealRolePicker();
     renderRevealGrid();
@@ -533,7 +534,7 @@ function closeRevealRolePicker() {
 function flashPlayerCard(playerId, camp) {
     var card = document.querySelector('.player-card[data-id="' + playerId + '"]');
     if (!card) return;
-    var flashClass = camp === 'wolf' ? 'flash-wolf' : camp === 'good' ? 'flash-good' : 'flash-default';
+    var flashClass = camp === 'wolf' ? 'flash-wolf' : camp === 'god' ? 'flash-god' : camp === 'villager' ? 'flash-villager' : 'flash-default';
     card.classList.add(flashClass);
     setTimeout(function () { card.classList.remove(flashClass); }, 600);
 }
@@ -554,15 +555,21 @@ function renderPlayers() {
             return '<option value="' + r + '"' + (p.role === r ? ' selected' : '') + '>' + ROLES[r].icon + ROLES[r].short + '</option>';
         }).join('');
 
-        return '<div class="player-card ' + (p.alive ? '' : 'dead') + '" data-id="' + p.id + '">' +
+        var confirmedClass = p.confirmed ? ' confirmed' : '';
+        var campCardClass = p.camp !== 'unknown' ? ' camp-' + p.camp : '';
+        var confirmBtnClass = 'id-confirm-btn' + (p.confirmed ? ' active' : '') + (p.confirmed && p.camp !== 'unknown' ? ' ' + p.camp : '');
+
+        return '<div class="player-card ' + (p.alive ? '' : 'dead') + confirmedClass + campCardClass + '" data-id="' + p.id + '">' +
             '<div class="card-row-top">' +
                 '<div class="player-num">' +
                     '<span class="num">' + p.id + '</span>' +
                     (hasSheriff ? '<button class="sheriff-btn ' + (p.sheriff ? 'active' : '') + '" onclick="toggleSheriff(' + p.id + ')">👮</button>' : '') +
                 '</div>' +
+                '<button class="' + confirmBtnClass + '" onclick="toggleConfirmed(' + p.id + ')">✓</button>' +
                 '<select class="role-select" onchange="setRole(' + p.id + ', this.value)">' + roleOptions + '</select>' +
                 '<div class="camp-btns">' +
-                    '<button class="camp-btn ' + (p.camp === 'good' ? 'active good' : '') + '" onclick="setCamp(' + p.id + ',\'good\')">😇</button>' +
+                    '<button class="camp-btn ' + (p.camp === 'god' ? 'active god' : '') + '" onclick="setCamp(' + p.id + ',\'god\')">🔮</button>' +
+                    '<button class="camp-btn ' + (p.camp === 'villager' ? 'active villager' : '') + '" onclick="setCamp(' + p.id + ',\'villager\')">👨‍🌾</button>' +
                     '<button class="camp-btn ' + (p.camp === 'unknown' ? 'active' : '') + '" onclick="setCamp(' + p.id + ',\'unknown\')">❓</button>' +
                     '<button class="camp-btn ' + (p.camp === 'wolf' ? 'active wolf' : '') + '" onclick="setCamp(' + p.id + ',\'wolf\')">🐺</button>' +
                 '</div>' +
@@ -589,7 +596,8 @@ function setRole(id, role) {
         p.role = role;
         var camp = ROLES[role]?.camp;
         if (camp === 'wolf') p.camp = 'wolf';
-        else if (camp === 'god' || role === 'villager') p.camp = 'good';
+        else if (camp === 'god') p.camp = 'god';
+        else if (camp === 'villager') p.camp = 'villager';
         renderPlayers();
         updateStats();
         saveGameState();
@@ -600,7 +608,7 @@ function setRole(id, role) {
 function setCamp(id, camp) {
     var p = players.find(function (x) { return x.id === id; });
     if (p) {
-        pushUndo(p.id + '号 阵营改为 ' + (camp === 'wolf' ? '狼人' : camp === 'good' ? '好人' : '未知'));
+        pushUndo(p.id + '号 阵营改为 ' + (camp === 'wolf' ? '狼人' : camp === 'god' ? '神' : camp === 'villager' ? '民' : '未知'));
         p.camp = camp;
         renderPlayers();
         updateStats();
@@ -639,11 +647,20 @@ function toggleSheriff(id) {
     if (p) { p.sheriff = true; renderPlayers(); saveGameState(); }
 }
 
+function toggleConfirmed(id) {
+    var p = players.find(function (x) { return x.id === id; });
+    if (!p) return;
+    pushUndo(p.id + '号 ' + (p.confirmed ? '取消确认' : '确认身份'));
+    p.confirmed = !p.confirmed;
+    renderPlayers();
+    saveGameState();
+}
+
 function updateStats() {
     var alive = players.filter(function (p) { return p.alive; }).length;
     var dead = players.filter(function (p) { return !p.alive; }).length;
     var wolves = players.filter(function (p) { return p.camp === 'wolf'; }).length;
-    var good = players.filter(function (p) { return p.camp === 'good'; }).length;
+    var good = players.filter(function (p) { return p.camp === 'god' || p.camp === 'villager'; }).length;
     document.getElementById('aliveCount').textContent = alive;
     document.getElementById('deadCount').textContent = dead;
     document.getElementById('wolfCount').textContent = wolves;
@@ -698,7 +715,7 @@ async function saveToHistory(result) {
         players: JSON.parse(JSON.stringify(players)),
         notes: document.getElementById('gameNotes')?.value || '',
         wolves: players.filter(function (p) { return p.camp === 'wolf'; }).length,
-        good: players.filter(function (p) { return p.camp === 'good'; }).length,
+        good: players.filter(function (p) { return p.camp === 'god' || p.camp === 'villager'; }).length,
         alive: players.filter(function (p) { return p.alive; }).length,
         result: result || null,
         game_events: gameEvents.slice()
@@ -832,7 +849,11 @@ async function viewHistoryGame(id) {
         }
     }
 
-    players = game.players;
+    players = game.players.map(function (p) {
+        if (p.confirmed === undefined) p.confirmed = false;
+        if (p.camp === 'good') p.camp = 'god';
+        return p;
+    });
     hasSheriff = game.has_sheriff;
     gameEvents = game.game_events || [];
     undoStack = [];
@@ -899,7 +920,11 @@ function loadGameState() {
     if (saved) {
         try {
             var s = JSON.parse(saved);
-            players = s.players || [];
+            players = (s.players || []).map(function (p) {
+                if (p.confirmed === undefined) p.confirmed = false;
+                if (p.camp === 'good') p.camp = 'god';
+                return p;
+            });
             selectedPlayerCount = s.selectedPlayerCount || 12;
             hasSheriff = s.hasSheriff !== false;
             currentRound = s.currentRound || 1;

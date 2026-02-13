@@ -645,7 +645,12 @@ body {
     opacity: 1;
 }
 
-.camp-btn.active.good {
+.camp-btn.active.god {
+    background: rgba(59, 130, 246, 0.25);
+    border-color: #3b82f6;
+}
+
+.camp-btn.active.villager {
     background: rgba(34, 197, 94, 0.25);
     border-color: var(--good);
 }
@@ -690,6 +695,63 @@ body {
     background: rgba(107, 114, 128, 0.2);
 }
 
+/* Identity Confirm Button */
+.id-confirm-btn {
+    width: 30px;
+    height: 30px;
+    border: 2px solid var(--border);
+    background: var(--bg3);
+    border-radius: 50%;
+    font-size: 0.85rem;
+    color: var(--muted);
+    opacity: 0.4;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.id-confirm-btn.active {
+    opacity: 1;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--text2);
+}
+
+.id-confirm-btn.active.god {
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+.id-confirm-btn.active.villager {
+    border-color: var(--good);
+    color: var(--good);
+}
+
+.id-confirm-btn.active.wolf {
+    border-color: var(--wolf);
+    color: var(--wolf);
+}
+
+/* Confirmed Player Card */
+.player-card.confirmed {
+    border-left: 3px solid var(--text2);
+    background: rgba(26, 26, 46, 0.95);
+}
+
+.player-card.confirmed.camp-god {
+    border-left-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.06);
+}
+
+.player-card.confirmed.camp-villager {
+    border-left-color: var(--good);
+    background: rgba(34, 197, 94, 0.06);
+}
+
+.player-card.confirmed.camp-wolf {
+    border-left-color: var(--wolf);
+    background: rgba(239, 68, 68, 0.06);
+}
+
 /* Death Tags */
 .death-tag {
     display: inline-block;
@@ -716,8 +778,12 @@ body {
     animation: flashWolf 0.6s ease;
 }
 
-.flash-good {
-    animation: flashGood 0.6s ease;
+.flash-god {
+    animation: flashGod 0.6s ease;
+}
+
+.flash-villager {
+    animation: flashVillager 0.6s ease;
 }
 
 .flash-default {
@@ -729,7 +795,12 @@ body {
     50% { box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.5); }
 }
 
-@keyframes flashGood {
+@keyframes flashGod {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 12px 4px rgba(59, 130, 246, 0.5); }
+}
+
+@keyframes flashVillager {
     0%, 100% { box-shadow: 0 0 0 0 transparent; }
     50% { box-shadow: 0 0 12px 4px rgba(34, 197, 94, 0.5); }
 }
@@ -1189,7 +1260,12 @@ body {
     background: rgba(239, 68, 68, 0.1);
 }
 
-.reveal-card.reveal-good {
+.reveal-card.reveal-god {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.reveal-card.reveal-villager {
     border-color: var(--good);
     background: rgba(34, 197, 94, 0.1);
 }
@@ -1278,8 +1354,15 @@ body {
     }
 
     .camp-btn {
-        width: 32px;
-        height: 32px;
+        width: 28px;
+        height: 28px;
+        font-size: 0.95rem;
+    }
+
+    .id-confirm-btn {
+        width: 26px;
+        height: 26px;
+        font-size: 0.75rem;
     }
 
     .status-btn {
@@ -1324,6 +1407,7 @@ textarea {
 
 .camp-btn:active,
 .status-btn:active,
-.sheriff-btn:active {
+.sheriff-btn:active,
+.id-confirm-btn:active {
     transform: scale(0.9);
 }
