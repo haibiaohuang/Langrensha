@@ -53,11 +53,28 @@ let deathPickerTarget = null;
 let revealTarget = null;
 let undoTimeout = null;
 
+// ===== Judge Mode State =====
+let isJudgeMode = false;
+let judgeSteps = [];
+let judgeStepIndex = 0;
+let judgeRoundData = {};
+let judgeAllRounds = [];
+let judgeVoiceEnabled = true;
+let witchSaveUsed = false;
+let witchPoisonUsed = false;
+let lastGuardTarget = null;
+let judgePhase = 'night'; // 'night' or 'day'
+let judgeSelectedPlayer = null;
+let judgeDawnDeaths = [];
+
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('App initializing...');
 
     try {
+        // Preload speech voices
+        if (window.speechSynthesis) speechSynthesis.getVoices();
+
         loadGameState();
         loadLocalHistory();
         setupEventListeners();
@@ -113,6 +130,7 @@ function setupEventListeners() {
     });
     document.getElementById('gameNotes')?.addEventListener('input', debounce(saveGameState, 500));
     document.getElementById('sheriffToggle')?.addEventListener('change', e => hasSheriff = e.target.checked);
+    document.getElementById('judgeModeToggle')?.addEventListener('change', e => isJudgeMode = e.target.checked);
 }
 
 // ===== Toast System =====
@@ -314,10 +332,18 @@ function startGame() {
     currentPhase = 'night';
     gameEvents = [];
     undoStack = [];
+    isJudgeMode = document.getElementById('judgeModeToggle').checked;
+    judgeAllRounds = [];
+    witchSaveUsed = false;
+    witchPoisonUsed = false;
+    lastGuardTarget = null;
     showGame();
     renderPlayers();
     updateStats();
     saveGameState();
+    if (isJudgeMode) {
+        openJudgeAssistant();
+    }
 }
 
 function showGame() {
@@ -326,6 +352,7 @@ function showGame() {
     document.getElementById('currentConfigInfo').innerHTML = `
         <span class="badge">${total}人 ${selectedConfig.name}</span>
         ${hasSheriff ? '<span class="sheriff">👮</span>' : ''}
+        ${isJudgeMode ? '<button class="judge-open-btn" onclick="openJudgeAssistant()">⚖️ 法官</button>' : ''}
     `;
     renderPlayers();
     updateRoundDisplay();
@@ -678,6 +705,13 @@ function resetGame() {
         currentPhase = 'night';
         gameEvents = [];
         undoStack = [];
+        isJudgeMode = false;
+        judgeAllRounds = [];
+        witchSaveUsed = false;
+        witchPoisonUsed = false;
+        lastGuardTarget = null;
+        var judgeToggle = document.getElementById('judgeModeToggle');
+        if (judgeToggle) judgeToggle.checked = false;
         document.getElementById('gameNotes').value = '';
         localStorage.removeItem('werewolfGameState');
         showSetup();
@@ -746,7 +780,7 @@ async function saveToHistory(result) {
         } catch (err) {
             console.error('Cloud save error:', err);
             saveLocalHistory(game);
-            showToast('云端保存失败，已保存到本地', 'warning');
+            showToast('云端保存失败: ' + (err.message || err.code || '未知错误'), 'warning', 4000);
         }
     } else {
         saveLocalHistory(game);
@@ -999,6 +1033,568 @@ function closeReview() {
     document.getElementById('reviewOverlay').classList.remove('overlay-active');
 }
 
+// ===== Judge Assistant =====
+const NIGHT_STEP_TEMPLATES = {
+    guard: [
+        { type: 'announce', text: '守卫请睁眼', voice: '守卫请睁眼，请选择今晚要守护的玩家', icon: '🛡️' },
+        { type: 'guard_protect', text: '选择守护对象', icon: '🛡️' },
+        { type: 'announce', text: '守卫请闭眼', voice: '守卫请闭眼', icon: '🛡️' },
+    ],
+    wolf: [
+        { type: 'announce', text: '狼人请睁眼', voice: '狼人请睁眼，请讨论并选择今晚要刀的玩家', icon: '🐺' },
+        { type: 'wolf_kill', text: '选择刀人对象', icon: '🐺' },
+        { type: 'announce', text: '狼人请闭眼', voice: '狼人请闭眼', icon: '🐺' },
+    ],
+    wolf_beauty: [
+        { type: 'announce', text: '狼美人请睁眼', voice: '狼美人请睁眼', icon: '💋' },
+        { type: 'wolf_beauty_charm', text: '选择魅惑对象', icon: '💋' },
+        { type: 'announce', text: '狼美人请闭眼', voice: '狼美人请闭眼', icon: '💋' },
+    ],
+    witch: [
+        { type: 'announce', text: '女巫请睁眼', voice: '女巫请睁眼', icon: '🧙‍♀️' },
+        { type: 'witch_turn', text: '女巫用药', icon: '🧙‍♀️' },
+        { type: 'announce', text: '女巫请闭眼', voice: '女巫请闭眼', icon: '🧙‍♀️' },
+    ],
+    seer: [
+        { type: 'announce', text: '预言家请睁眼', voice: '预言家请睁眼，请选择今晚要查验的玩家', icon: '🔮' },
+        { type: 'seer_check', text: '选择查验对象', icon: '🔮' },
+        { type: 'announce', text: '预言家请闭眼', voice: '预言家请闭眼', icon: '🔮' },
+    ],
+};
+
+function buildNightSteps() {
+    var steps = [];
+    steps.push({ type: 'announce', text: '天黑请闭眼', voice: '天黑请闭眼', icon: '🌙' });
+
+    var order = ['guard', 'wolf', 'wolf_beauty', 'witch', 'seer'];
+    order.forEach(function (role) {
+        var hasRole = false;
+        if (role === 'wolf') {
+            hasRole = true;
+        } else if (role === 'wolf_beauty') {
+            hasRole = selectedConfig.wolves.includes('wolf_beauty');
+        } else if (role === 'guard') {
+            hasRole = selectedConfig.gods.includes('guard');
+        } else if (role === 'witch') {
+            hasRole = selectedConfig.gods.includes('witch');
+        } else if (role === 'seer') {
+            hasRole = selectedConfig.gods.includes('seer');
+        }
+        if (hasRole) {
+            NIGHT_STEP_TEMPLATES[role].forEach(function (s) {
+                steps.push(Object.assign({}, s));
+            });
+        }
+    });
+
+    steps.push({ type: 'announce', text: '天亮了请睁眼', voice: '天亮了，请大家睁眼', icon: '☀️' });
+    return steps;
+}
+
+function buildDaySteps() {
+    var steps = [];
+    steps.push({ type: 'dawn_result', text: '公布昨晚结果', icon: '☀️' });
+    if (currentRound === 1 && hasSheriff) {
+        steps.push({ type: 'announce', text: '警长竞选', voice: '请进行警长竞选', icon: '👮' });
+    }
+    steps.push({ type: 'announce', text: '开始发言', voice: '请开始自由发言', icon: '💬' });
+    steps.push({ type: 'vote', text: '投票环节', icon: '🗳️' });
+    steps.push({ type: 'end_day', text: '结束白天', icon: '🌙' });
+    return steps;
+}
+
+function openJudgeAssistant() {
+    judgeRoundData = { round: currentRound, night: {}, day: {} };
+    judgePhase = 'night';
+    judgeSteps = buildNightSteps();
+    judgeStepIndex = 0;
+    judgeSelectedPlayer = null;
+    judgeDawnDeaths = [];
+    document.getElementById('judgeOverlay').classList.add('overlay-active');
+    updateJudgeRoundInfo();
+    renderJudgeStep();
+}
+
+function closeJudgeAssistant() {
+    speechSynthesis.cancel();
+    document.getElementById('judgeOverlay').classList.remove('overlay-active');
+}
+
+function updateJudgeRoundInfo() {
+    var phaseText = judgePhase === 'night' ? '夜晚' : '白天';
+    document.getElementById('judgeRoundInfo').textContent = '第' + currentRound + '轮 · ' + phaseText;
+}
+
+function renderJudgeProgress() {
+    var html = '';
+    for (var i = 0; i < judgeSteps.length; i++) {
+        var cls = 'judge-progress-dot';
+        if (i < judgeStepIndex) cls += ' done';
+        else if (i === judgeStepIndex) cls += ' active ' + judgePhase;
+        html += '<span class="' + cls + '"></span>';
+    }
+    document.getElementById('judgeProgress').innerHTML = html;
+}
+
+function renderJudgeStep() {
+    if (judgeStepIndex >= judgeSteps.length) {
+        if (judgePhase === 'night') {
+            judgePhase = 'day';
+            judgeSteps = buildDaySteps();
+            judgeStepIndex = 0;
+            updateJudgeRoundInfo();
+        }
+        renderJudgeStep();
+        return;
+    }
+
+    var step = judgeSteps[judgeStepIndex];
+    var content = document.getElementById('judgeStepContent');
+    var footer = document.getElementById('judgeFooter');
+    judgeSelectedPlayer = null;
+
+    renderJudgeProgress();
+
+    if (step.type === 'announce') {
+        renderAnnounceStep(step, content, footer);
+    } else if (step.type === 'wolf_kill') {
+        renderPlayerSelectStep(step, content, footer, 'wolf_kill');
+    } else if (step.type === 'guard_protect') {
+        renderGuardStep(step, content, footer);
+    } else if (step.type === 'wolf_beauty_charm') {
+        renderPlayerSelectStep(step, content, footer, 'wolf_beauty_charm');
+    } else if (step.type === 'witch_turn') {
+        renderWitchStep(step, content, footer);
+    } else if (step.type === 'seer_check') {
+        renderSeerStep(step, content, footer);
+    } else if (step.type === 'dawn_result') {
+        renderDawnResultStep(step, content, footer);
+    } else if (step.type === 'vote') {
+        renderVoteStep(step, content, footer);
+    } else if (step.type === 'end_day') {
+        renderEndDayStep(step, content, footer);
+    }
+
+    if (step.type === 'announce' && step.voice) {
+        judgeSpeak(step.voice);
+    }
+}
+
+function renderAnnounceStep(step, content, footer) {
+    content.innerHTML =
+        '<div class="judge-step-icon">' + (step.icon || '📢') + '</div>' +
+        '<div class="judge-step-text">' + step.text + '</div>' +
+        (step.voice ? '<button class="judge-replay-btn" onclick="judgeSpeak(\'' + escapeHtml(step.voice).replace(/'/g, "\\'") + '\')">🔊 重播</button>' : '');
+
+    footer.innerHTML =
+        '<button class="judge-btn prev" onclick="judgePrevStep()" ' + (judgeStepIndex === 0 ? 'style="visibility:hidden"' : '') + '>◀ 上一步</button>' +
+        '<button class="judge-btn next" onclick="judgeNextStep()">下一步 ▶</button>';
+}
+
+function getAlivePlayers() {
+    return players.filter(function (p) { return p.alive; });
+}
+
+function buildPlayerGrid(disabledIds, actionType) {
+    var html = '<div class="judge-player-grid">';
+    players.forEach(function (p) {
+        var isDisabled = !p.alive || (disabledIds && disabledIds.indexOf(p.id) >= 0);
+        var isSelected = judgeSelectedPlayer === p.id;
+        var cls = 'judge-player-cell';
+        if (isDisabled) cls += ' disabled';
+        if (isSelected) cls += ' selected';
+        var roleInfo = p.role !== 'unknown' ? ROLES[p.role] : null;
+        html += '<div class="' + cls + '" onclick="judgeSelectPlayer(' + p.id + ', \'' + actionType + '\')">' +
+            '<span class="cell-num">' + p.id + '</span>' +
+            (roleInfo ? '<span class="cell-role">' + roleInfo.icon + '</span>' : '') +
+            '</div>';
+    });
+    html += '</div>';
+    return html;
+}
+
+function renderPlayerSelectStep(step, content, footer, actionType) {
+    var disabledIds = [];
+    content.innerHTML =
+        '<div class="judge-step-icon">' + (step.icon || '❓') + '</div>' +
+        '<div class="judge-step-text">' + step.text + '</div>' +
+        buildPlayerGrid(disabledIds, actionType) +
+        (actionType === 'wolf_beauty_charm' ? '<button class="judge-action-btn skip" style="margin-top:8px;max-width:400px;width:100%" onclick="judgeSkipAction(\'' + actionType + '\')">⏭ 不魅惑</button>' : '');
+
+    footer.innerHTML =
+        '<button class="judge-btn prev" onclick="judgePrevStep()">◀ 上一步</button>' +
+        '<button class="judge-btn next" onclick="judgeConfirmSelection(\'' + actionType + '\')" id="judgeConfirmBtn" ' + (judgeSelectedPlayer ? '' : 'style="opacity:0.4;pointer-events:none"') + '>确认 ▶</button>';
+}
+
+function renderGuardStep(step, content, footer) {
+    var disabledIds = [];
+    if (lastGuardTarget) disabledIds.push(lastGuardTarget);
+
+    content.innerHTML =
+        '<div class="judge-step-icon">' + step.icon + '</div>' +
+        '<div class="judge-step-text">' + step.text + '</div>' +
+        (lastGuardTarget ? '<div class="judge-step-subtitle">上夜守护了 ' + lastGuardTarget + '号，不可连续守护</div>' : '') +
+        buildPlayerGrid(disabledIds, 'guard_protect') +
+        '<button class="judge-action-btn skip" style="margin-top:8px;max-width:400px;width:100%" onclick="judgeSkipAction(\'guard_protect\')">⏭ 空守</button>';
+
+    footer.innerHTML =
+        '<button class="judge-btn prev" onclick="judgePrevStep()">◀ 上一步</button>' +
+        '<button class="judge-btn next" onclick="judgeConfirmSelection(\'guard_protect\')" id="judgeConfirmBtn" ' + (judgeSelectedPlayer ? '' : 'style="opacity:0.4;pointer-events:none"') + '>确认 ▶</button>';
+}
+
+function renderWitchStep(step, content, footer) {
+    var wolfTarget = judgeRoundData.night.wolf_kill;
+    var targetText = wolfTarget ? wolfTarget + '号 被刀' : '今晚无人被刀';
+    var saveDisabled = witchSaveUsed || !wolfTarget;
+    var poisonDisabled = witchPoisonUsed;
+
+    content.innerHTML =
+        '<div class="judge-step-icon">' + step.icon + '</div>' +
+        '<div class="judge-witch-info">🐺 今晚 ' + targetText + '</div>' +
+        '<div class="judge-action-btns">' +
+            '<button class="judge-action-btn save' + (saveDisabled ? ' disabled' : '') + '" onclick="judgeWitchAction(\'save\')">' +
+                '💊 救' + (witchSaveUsed ? '（已用）' : '') +
+            '</button>' +
+            '<button class="judge-action-btn poison' + (poisonDisabled ? ' disabled' : '') + '" onclick="judgeWitchAction(\'poison\')">' +
+                '🧪 毒' + (witchPoisonUsed ? '（已用）' : '') +
+            '</button>' +
+            '<button class="judge-action-btn skip" onclick="judgeWitchAction(\'skip\')">⏭ 不用药</button>' +
+        '</div>' +
+        '<div id="witchPoisonGrid"></div>';
+
+    footer.innerHTML =
+        '<button class="judge-btn prev" onclick="judgePrevStep()">◀ 上一步</button>' +
+        '<span></span>';
+}
+
+function judgeWitchAction(action) {
+    if (action === 'save') {
+        var wolfTarget = judgeRoundData.night.wolf_kill;
+        if (!wolfTarget || witchSaveUsed) return;
+        judgeRoundData.night.witch_save = wolfTarget;
+        witchSaveUsed = true;
+        showToast('女巫使用解药救了 ' + wolfTarget + '号', 'success');
+        judgeNextStep();
+    } else if (action === 'poison') {
+        if (witchPoisonUsed) return;
+        var grid = document.getElementById('witchPoisonGrid');
+        judgeSelectedPlayer = null;
+        grid.innerHTML =
+            '<div class="judge-step-subtitle" style="margin:12px 0 8px">选择毒杀目标</div>' +
+            buildPlayerGrid([], 'witch_poison') +
+            '<button class="judge-btn next" style="margin-top:10px;width:100%" onclick="judgeConfirmWitchPoison()" id="judgeConfirmBtn" style="opacity:0.4;pointer-events:none">确认毒杀 ▶</button>';
+    } else {
+        judgeNextStep();
+    }
+}
+
+function judgeConfirmWitchPoison() {
+    if (!judgeSelectedPlayer) return;
+    judgeRoundData.night.witch_poison = judgeSelectedPlayer;
+    witchPoisonUsed = true;
+    showToast('女巫毒杀了 ' + judgeSelectedPlayer + '号', 'info');
+    judgeSelectedPlayer = null;
+    judgeNextStep();
+}
+
+function renderSeerStep(step, content, footer) {
+    content.innerHTML =
+        '<div class="judge-step-icon">' + step.icon + '</div>' +
+        '<div class="judge-step-text">' + step.text + '</div>' +
+        buildPlayerGrid([], 'seer_check');
+
+    footer.innerHTML =
+        '<button class="judge-btn prev" onclick="judgePrevStep()">◀ 上一步</button>' +
+        '<button class="judge-btn next" onclick="judgeConfirmSelection(\'seer_check\')" id="judgeConfirmBtn" ' + (judgeSelectedPlayer ? '' : 'style="opacity:0.4;pointer-events:none"') + '>确认 ▶</button>';
+}
+
+function judgeSeerResult(playerId) {
+    var content = document.getElementById('judgeStepContent');
+    content.innerHTML =
+        '<div class="judge-step-icon">🔮</div>' +
+        '<div class="judge-step-text">' + playerId + '号 的查验结果</div>' +
+        '<div class="judge-action-btns">' +
+            '<button class="judge-action-btn good-result" onclick="judgeRecordSeerResult(' + playerId + ', \'good\')">😇 好人</button>' +
+            '<button class="judge-action-btn wolf-result" onclick="judgeRecordSeerResult(' + playerId + ', \'wolf\')">🐺 狼人</button>' +
+        '</div>';
+
+    document.getElementById('judgeFooter').innerHTML =
+        '<button class="judge-btn prev" onclick="renderJudgeStep()">◀ 返回</button><span></span>';
+}
+
+function judgeRecordSeerResult(playerId, result) {
+    judgeRoundData.night.seer_check = { target: playerId, result: result };
+    var resultText = result === 'good' ? '😇 好人' : '🐺 狼人';
+    showToast(playerId + '号 查验结果：' + resultText, 'info');
+    judgeNextStep();
+}
+
+function renderDawnResultStep(step, content, footer) {
+    judgeDawnDeaths = computeNightDeaths();
+
+    var html = '<div class="judge-step-icon">' + step.icon + '</div>' +
+        '<div class="judge-step-text">' + step.text + '</div>';
+
+    if (judgeDawnDeaths.length === 0) {
+        html += '<div class="judge-dawn-peace">平安夜 🎉</div>';
+    } else {
+        html += '<div class="judge-dawn-list">';
+        judgeDawnDeaths.forEach(function (d, idx) {
+            var reasonLabel = d.reason === 'wolf_kill' ? '🐺 狼刀' : d.reason === 'witch_poison' ? '🧪 女巫毒杀' : d.reason;
+            html += '<div class="judge-dawn-item">' +
+                '<span class="dawn-info">' + d.id + '号</span>' +
+                '<span class="dawn-reason">' + reasonLabel + '</span>' +
+                '<button class="dawn-remove" onclick="judgeDawnRemove(' + idx + ')">✕</button>' +
+                '</div>';
+        });
+        html += '</div>';
+    }
+
+    html += '<button class="judge-dawn-add" onclick="judgeDawnAddPicker()">+ 添加死亡玩家</button>' +
+        '<div id="judgeDawnAddGrid"></div>';
+
+    content.innerHTML = html;
+
+    footer.innerHTML =
+        '<button class="judge-btn prev" onclick="judgePrevStep()">◀ 上一步</button>' +
+        '<button class="judge-btn next" onclick="judgeDawnConfirm()">确认公布 ▶</button>';
+}
+
+function judgeDawnRemove(idx) {
+    judgeDawnDeaths.splice(idx, 1);
+    renderDawnResultStep(judgeSteps[judgeStepIndex], document.getElementById('judgeStepContent'), document.getElementById('judgeFooter'));
+}
+
+function judgeDawnAddPicker() {
+    var grid = document.getElementById('judgeDawnAddGrid');
+    var existingIds = judgeDawnDeaths.map(function (d) { return d.id; });
+    var deadIds = players.filter(function (p) { return !p.alive; }).map(function (p) { return p.id; });
+    var disabledIds = existingIds.concat(deadIds);
+    judgeSelectedPlayer = null;
+    grid.innerHTML =
+        '<div class="judge-step-subtitle" style="margin:12px 0 8px">选择要添加的死亡玩家</div>' +
+        buildPlayerGrid(disabledIds, 'dawn_add') +
+        '<button class="judge-btn next" style="margin-top:10px;width:100%" onclick="judgeDawnAddConfirm()" id="judgeConfirmBtn" style="opacity:0.4;pointer-events:none">添加 ▶</button>';
+}
+
+function judgeDawnAddConfirm() {
+    if (!judgeSelectedPlayer) return;
+    judgeDawnDeaths.push({ id: judgeSelectedPlayer, reason: 'other' });
+    judgeSelectedPlayer = null;
+    renderDawnResultStep(judgeSteps[judgeStepIndex], document.getElementById('judgeStepContent'), document.getElementById('judgeFooter'));
+}
+
+function judgeDawnConfirm() {
+    applyJudgeDeaths(judgeDawnDeaths);
+    if (judgeDawnDeaths.length > 0) {
+        var names = judgeDawnDeaths.map(function (d) { return d.id + '号'; }).join('、');
+        showToast('昨晚死亡：' + names, 'info');
+    } else {
+        showToast('昨晚是平安夜', 'success');
+    }
+    judgeNextStep();
+}
+
+function renderVoteStep(step, content, footer) {
+    content.innerHTML =
+        '<div class="judge-step-icon">' + step.icon + '</div>' +
+        '<div class="judge-step-text">' + step.text + '</div>' +
+        buildPlayerGrid([], 'vote') +
+        '<button class="judge-action-btn skip" style="margin-top:8px;max-width:400px;width:100%" onclick="judgeSkipAction(\'vote\')">⏭ 平票/无人出局</button>';
+
+    footer.innerHTML =
+        '<button class="judge-btn prev" onclick="judgePrevStep()">◀ 上一步</button>' +
+        '<button class="judge-btn next" onclick="judgeConfirmSelection(\'vote\')" id="judgeConfirmBtn" ' + (judgeSelectedPlayer ? '' : 'style="opacity:0.4;pointer-events:none"') + '>确认 ▶</button>';
+}
+
+function renderEndDayStep(step, content, footer) {
+    content.innerHTML =
+        '<div class="judge-step-icon">' + step.icon + '</div>' +
+        '<div class="judge-step-text">白天阶段结束</div>' +
+        '<div class="judge-step-subtitle">点击下方按钮进入下一夜</div>';
+
+    footer.innerHTML =
+        '<button class="judge-btn prev" onclick="judgePrevStep()">◀ 上一步</button>' +
+        '<button class="judge-btn next" onclick="judgeStartNextNight()">🌙 进入下一夜 ▶</button>';
+}
+
+function judgeStartNextNight() {
+    judgeAllRounds.push(JSON.parse(JSON.stringify(judgeRoundData)));
+    currentRound++;
+    currentPhase = 'night';
+    updateRoundDisplay();
+    judgeRoundData = { round: currentRound, night: {}, day: {} };
+    judgePhase = 'night';
+    judgeSteps = buildNightSteps();
+    judgeStepIndex = 0;
+    judgeSelectedPlayer = null;
+    judgeDawnDeaths = [];
+    updateJudgeRoundInfo();
+    renderJudgeStep();
+    saveGameState();
+}
+
+function judgeNextStep() {
+    judgeStepIndex++;
+    if (judgeStepIndex >= judgeSteps.length) {
+        if (judgePhase === 'night') {
+            judgePhase = 'day';
+            currentPhase = 'day';
+            updateRoundDisplay();
+            judgeSteps = buildDaySteps();
+            judgeStepIndex = 0;
+            updateJudgeRoundInfo();
+        }
+    }
+    judgeSelectedPlayer = null;
+    renderJudgeStep();
+    saveGameState();
+}
+
+function judgePrevStep() {
+    if (judgeStepIndex > 0) {
+        judgeStepIndex--;
+        judgeSelectedPlayer = null;
+        renderJudgeStep();
+    }
+}
+
+function judgeSelectPlayer(playerId, actionType) {
+    var p = players.find(function (x) { return x.id === playerId; });
+    if (!p || !p.alive) return;
+
+    if (actionType === 'guard_protect' && lastGuardTarget === playerId) return;
+
+    if (actionType === 'seer_check') {
+        judgeSelectedPlayer = playerId;
+        judgeSeerResult(playerId);
+        return;
+    }
+
+    judgeSelectedPlayer = playerId;
+
+    // Re-render the grid to show selection
+    var cells = document.querySelectorAll('.judge-player-cell');
+    cells.forEach(function (cell) {
+        cell.classList.remove('selected');
+    });
+    var targetCell = null;
+    cells.forEach(function (cell) {
+        var num = cell.querySelector('.cell-num');
+        if (num && parseInt(num.textContent) === playerId) {
+            targetCell = cell;
+        }
+    });
+    if (targetCell) targetCell.classList.add('selected');
+
+    // Enable confirm button
+    var confirmBtn = document.getElementById('judgeConfirmBtn');
+    if (confirmBtn) {
+        confirmBtn.style.opacity = '1';
+        confirmBtn.style.pointerEvents = 'auto';
+    }
+}
+
+function judgeConfirmSelection(actionType) {
+    if (!judgeSelectedPlayer) return;
+
+    if (actionType === 'wolf_kill') {
+        judgeRoundData.night.wolf_kill = judgeSelectedPlayer;
+        showToast('狼人刀了 ' + judgeSelectedPlayer + '号', 'info');
+    } else if (actionType === 'guard_protect') {
+        judgeRoundData.night.guard_protect = judgeSelectedPlayer;
+        lastGuardTarget = judgeSelectedPlayer;
+        showToast('守卫守护了 ' + judgeSelectedPlayer + '号', 'info');
+    } else if (actionType === 'wolf_beauty_charm') {
+        judgeRoundData.night.wolf_beauty_charm = judgeSelectedPlayer;
+        showToast('狼美人魅惑了 ' + judgeSelectedPlayer + '号', 'info');
+    } else if (actionType === 'vote') {
+        judgeRoundData.day.vote_out = judgeSelectedPlayer;
+        var vp = players.find(function (x) { return x.id === judgeSelectedPlayer; });
+        if (vp) {
+            pushUndo(vp.id + '号 投票出局');
+            vp.alive = false;
+            vp.deathReason = 'vote';
+            vp.deathRound = currentRound;
+            vp.deathPhase = 'day';
+            renderPlayers();
+            updateStats();
+            logGameEvent({ type: 'death', playerId: vp.id, reason: 'vote', round: currentRound, phase: 'day' });
+        }
+        showToast(judgeSelectedPlayer + '号 被投票出局', 'info');
+    }
+
+    judgeSelectedPlayer = null;
+    judgeNextStep();
+}
+
+function judgeSkipAction(actionType) {
+    if (actionType === 'guard_protect') {
+        judgeRoundData.night.guard_protect = null;
+        lastGuardTarget = null;
+        showToast('守卫空守', 'info');
+    } else if (actionType === 'wolf_beauty_charm') {
+        judgeRoundData.night.wolf_beauty_charm = null;
+        showToast('狼美人未魅惑', 'info');
+    } else if (actionType === 'vote') {
+        judgeRoundData.day.vote_out = null;
+        showToast('无人被投出', 'info');
+    }
+    judgeNextStep();
+}
+
+function judgeSpeak(text) {
+    if (!judgeVoiceEnabled) return;
+    speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN';
+    u.rate = 0.9;
+    var voices = speechSynthesis.getVoices();
+    var zhVoice = voices.find(function (v) { return v.lang.startsWith('zh'); });
+    if (zhVoice) u.voice = zhVoice;
+    speechSynthesis.speak(u);
+}
+
+function toggleJudgeVoice() {
+    judgeVoiceEnabled = !judgeVoiceEnabled;
+    document.getElementById('judgeVoiceBtn').textContent = judgeVoiceEnabled ? '🔊' : '🔇';
+    if (!judgeVoiceEnabled) speechSynthesis.cancel();
+    showToast(judgeVoiceEnabled ? '语音已开启' : '语音已关闭', 'info');
+}
+
+function computeNightDeaths() {
+    var deaths = [];
+    var wolfTarget = judgeRoundData.night.wolf_kill;
+    var witchSaved = judgeRoundData.night.witch_save;
+    var guardTarget = judgeRoundData.night.guard_protect;
+    var witchPoison = judgeRoundData.night.witch_poison;
+
+    if (wolfTarget && wolfTarget !== witchSaved && wolfTarget !== guardTarget) {
+        deaths.push({ id: wolfTarget, reason: 'wolf_kill' });
+    }
+    if (witchPoison) {
+        deaths.push({ id: witchPoison, reason: 'witch_poison' });
+    }
+    return deaths;
+}
+
+function applyJudgeDeaths(deaths) {
+    deaths.forEach(function (d) {
+        var p = players.find(function (x) { return x.id === d.id; });
+        if (p && p.alive) {
+            pushUndo(p.id + '号 死亡');
+            p.alive = false;
+            p.deathReason = d.reason;
+            p.deathRound = currentRound;
+            p.deathPhase = 'night';
+            logGameEvent({ type: 'death', playerId: p.id, reason: d.reason, round: currentRound, phase: 'night' });
+        }
+    });
+    renderPlayers();
+    updateStats();
+    saveGameState();
+}
+
 // ===== Persistence =====
 function saveGameState() {
     localStorage.setItem('werewolfGameState', JSON.stringify({
@@ -1009,7 +1605,13 @@ function saveGameState() {
         hasSheriff: hasSheriff,
         currentRound: currentRound,
         currentPhase: currentPhase,
-        gameEvents: gameEvents
+        gameEvents: gameEvents,
+        isJudgeMode: isJudgeMode,
+        judgeAllRounds: judgeAllRounds,
+        witchSaveUsed: witchSaveUsed,
+        witchPoisonUsed: witchPoisonUsed,
+        lastGuardTarget: lastGuardTarget,
+        judgeVoiceEnabled: judgeVoiceEnabled
     }));
 }
 
@@ -1028,12 +1630,20 @@ function loadGameState() {
             currentRound = s.currentRound || 1;
             currentPhase = s.currentPhase || 'night';
             gameEvents = s.gameEvents || [];
+            isJudgeMode = s.isJudgeMode || false;
+            judgeAllRounds = s.judgeAllRounds || [];
+            witchSaveUsed = s.witchSaveUsed || false;
+            witchPoisonUsed = s.witchPoisonUsed || false;
+            lastGuardTarget = s.lastGuardTarget || null;
+            if (s.judgeVoiceEnabled !== undefined) judgeVoiceEnabled = s.judgeVoiceEnabled;
             document.querySelectorAll('.tab').forEach(function (t) {
                 t.classList.toggle('active', parseInt(t.dataset.count) === selectedPlayerCount);
             });
             if (s.selectedConfigId) selectedConfig = (GAME_CONFIGS[selectedPlayerCount] || []).find(function (c) { return c.id === s.selectedConfigId; });
             var toggle = document.getElementById('sheriffToggle');
             if (toggle) toggle.checked = hasSheriff;
+            var judgeToggle = document.getElementById('judgeModeToggle');
+            if (judgeToggle) judgeToggle.checked = isJudgeMode;
             var notes = document.getElementById('gameNotes');
             if (notes) notes.value = s.notes || '';
             renderConfigOptions();

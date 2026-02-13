@@ -1581,6 +1581,378 @@ body {
     transform: scale(0.95);
 }
 
+/* ===== Judge Assistant ===== */
+.judge-container {
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.judge-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.judge-header h3 {
+    font-size: 1.1rem;
+}
+
+#judgeRoundInfo {
+    font-size: 0.85rem;
+    color: var(--text2);
+    flex: 1;
+}
+
+.judge-header-btns {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+}
+
+.judge-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px 20px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.judge-progress-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    transition: all 0.2s;
+}
+
+.judge-progress-dot.done {
+    background: var(--muted);
+    border-color: var(--muted);
+}
+
+.judge-progress-dot.active {
+    width: 12px;
+    height: 12px;
+    border-color: transparent;
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.5);
+}
+
+.judge-progress-dot.active.night {
+    background: #818cf8;
+}
+
+.judge-progress-dot.active.day {
+    background: #fbbf24;
+}
+
+.judge-step-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    gap: 16px;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.judge-step-icon {
+    font-size: 4rem;
+    line-height: 1;
+}
+
+.judge-step-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.judge-step-subtitle {
+    font-size: 0.9rem;
+    color: var(--text2);
+    text-align: center;
+}
+
+.judge-replay-btn {
+    padding: 8px 16px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text2);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.judge-replay-btn:active {
+    background: rgba(99, 102, 241, 0.2);
+}
+
+.judge-player-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    width: 100%;
+    max-width: 400px;
+}
+
+.judge-player-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 12px 6px;
+    background: var(--bg2);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.judge-player-cell:active {
+    transform: scale(0.95);
+}
+
+.judge-player-cell .cell-num {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.judge-player-cell .cell-role {
+    font-size: 0.7rem;
+    color: var(--text2);
+}
+
+.judge-player-cell.selected {
+    border-color: var(--accent);
+    background: rgba(99, 102, 241, 0.2);
+}
+
+.judge-player-cell.disabled {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.judge-action-btns {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    max-width: 400px;
+}
+
+.judge-action-btn {
+    padding: 16px 24px;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--bg2);
+    color: var(--text);
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+}
+
+.judge-action-btn:active {
+    transform: scale(0.97);
+}
+
+.judge-action-btn.save {
+    border-color: var(--good);
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--good);
+}
+
+.judge-action-btn.poison {
+    border-color: #a855f7;
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+}
+
+.judge-action-btn.skip {
+    border-color: var(--muted);
+    color: var(--text2);
+}
+
+.judge-action-btn.good-result {
+    border-color: var(--good);
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--good);
+}
+
+.judge-action-btn.wolf-result {
+    border-color: var(--wolf);
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--wolf);
+}
+
+.judge-action-btn.disabled {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+.judge-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    padding-bottom: calc(12px + var(--safe-bottom));
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 12px;
+}
+
+.judge-btn {
+    padding: 12px 24px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text2);
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.judge-btn:active {
+    transform: scale(0.97);
+}
+
+.judge-btn.next {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-color: transparent;
+    color: white;
+    flex: 1;
+    text-align: center;
+}
+
+.judge-btn.prev {
+    min-width: 80px;
+    text-align: center;
+}
+
+.judge-dawn-list {
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.judge-dawn-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--bg2);
+    border-radius: 10px;
+    border-left: 3px solid var(--wolf);
+}
+
+.judge-dawn-item .dawn-info {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.judge-dawn-item .dawn-reason {
+    font-size: 0.85rem;
+    color: var(--text2);
+}
+
+.judge-dawn-item .dawn-remove {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: rgba(239, 68, 68, 0.2);
+    border-radius: 6px;
+    color: var(--wolf);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.judge-dawn-add {
+    padding: 10px;
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text2);
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-align: center;
+    width: 100%;
+    max-width: 400px;
+}
+
+.judge-dawn-add:active {
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.judge-dawn-peace {
+    font-size: 1.2rem;
+    color: var(--good);
+    font-weight: 600;
+    text-align: center;
+    padding: 20px;
+}
+
+.judge-result-badge {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.judge-result-badge.good {
+    background: rgba(34, 197, 94, 0.2);
+    color: var(--good);
+}
+
+.judge-result-badge.wolf {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--wolf);
+}
+
+.judge-witch-info {
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: center;
+    padding: 8px 16px;
+    background: var(--bg2);
+    border-radius: 10px;
+    width: 100%;
+    max-width: 400px;
+}
+
+.judge-open-btn {
+    padding: 8px 14px;
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    background: rgba(139, 92, 246, 0.15);
+    color: #c084fc;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.judge-open-btn:active {
+    transform: scale(0.97);
+}
+
 /* ===== Mobile Optimizations ===== */
 @media (max-width: 480px) {
     .card-row-top {
@@ -1621,6 +1993,24 @@ body {
     .reveal-grid {
         gap: 8px;
         padding: 12px;
+    }
+
+    .judge-player-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+    }
+
+    .judge-step-icon {
+        font-size: 3rem;
+    }
+
+    .judge-step-text {
+        font-size: 1.3rem;
+    }
+
+    .judge-action-btn {
+        padding: 12px 16px;
+        font-size: 0.9rem;
     }
 }
 
