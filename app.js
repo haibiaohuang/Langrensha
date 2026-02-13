@@ -660,11 +660,13 @@ function updateStats() {
     var alive = players.filter(function (p) { return p.alive; }).length;
     var dead = players.filter(function (p) { return !p.alive; }).length;
     var wolves = players.filter(function (p) { return p.camp === 'wolf'; }).length;
-    var good = players.filter(function (p) { return p.camp === 'god' || p.camp === 'villager'; }).length;
+    var gods = players.filter(function (p) { return p.camp === 'god'; }).length;
+    var villagers = players.filter(function (p) { return p.camp === 'villager'; }).length;
     document.getElementById('aliveCount').textContent = alive;
     document.getElementById('deadCount').textContent = dead;
     document.getElementById('wolfCount').textContent = wolves;
-    document.getElementById('goodCount').textContent = good;
+    document.getElementById('godCount').textContent = gods;
+    document.getElementById('villagerCount').textContent = villagers;
 }
 
 function resetGame() {

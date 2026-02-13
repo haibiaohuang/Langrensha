@@ -540,8 +540,12 @@ body {
     color: var(--wolf);
 }
 
-.stat.good {
+.stat.god {
     color: #3b82f6;
+}
+
+.stat.villager {
+    color: var(--good);
 }
 
 /* ===== Player Card (two-row layout) ===== */
