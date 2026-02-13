@@ -1314,6 +1314,242 @@ body {
     background: rgba(99, 102, 241, 0.2);
 }
 
+/* ===== Review Overlay ===== */
+.review-container {
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.review-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.review-header h3 {
+    font-size: 1.1rem;
+}
+
+.review-config {
+    font-size: 0.85rem;
+    color: var(--text2);
+    flex: 1;
+}
+
+.review-header .btn-close {
+    margin-left: auto;
+}
+
+.review-content {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.review-result {
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: 700;
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--bg2);
+}
+
+.review-result.result-good {
+    color: var(--good);
+    background: rgba(34, 197, 94, 0.1);
+}
+
+.review-result.result-wolf {
+    color: var(--wolf);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.review-result.result-draw {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.review-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.review-round {
+    position: relative;
+    padding: 12px 16px 12px 28px;
+    border-left: 3px solid var(--border);
+    margin-left: 8px;
+}
+
+.review-round:last-child {
+    border-left-color: transparent;
+}
+
+.review-round::before {
+    content: '';
+    position: absolute;
+    left: -7px;
+    top: 16px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+}
+
+.review-round.night::before {
+    background: #818cf8;
+}
+
+.review-round.day::before {
+    background: #fbbf24;
+}
+
+.review-round-title {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 8px;
+    color: var(--text);
+}
+
+.review-death-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg2);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    border-left: 3px solid var(--muted);
+}
+
+.review-death-item.camp-wolf {
+    border-left-color: var(--wolf);
+}
+
+.review-death-item.camp-god {
+    border-left-color: #3b82f6;
+}
+
+.review-death-item.camp-villager {
+    border-left-color: var(--good);
+}
+
+.review-death-num {
+    font-weight: 700;
+    font-size: 1rem;
+    min-width: 24px;
+}
+
+.review-death-role {
+    font-size: 0.9rem;
+    color: var(--text2);
+}
+
+.review-death-reason {
+    margin-left: auto;
+    font-size: 0.8rem;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.review-round.empty .review-peace {
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-style: italic;
+}
+
+.review-section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+}
+
+.review-players-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.review-player-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 10px 6px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    position: relative;
+}
+
+.review-player-card.dead {
+    opacity: 0.5;
+}
+
+.review-player-card.camp-wolf {
+    border-color: var(--wolf);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.review-player-card.camp-god {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.08);
+}
+
+.review-player-card.camp-villager {
+    border-color: var(--good);
+    background: rgba(34, 197, 94, 0.08);
+}
+
+.review-player-num {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text2);
+}
+
+.review-player-icon {
+    font-size: 1.4rem;
+}
+
+.review-player-name {
+    font-size: 0.78rem;
+    color: var(--text2);
+}
+
+.review-player-death {
+    font-size: 0.65rem;
+    color: var(--muted);
+    background: rgba(239, 68, 68, 0.15);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-top: 2px;
+}
+
+@media (max-width: 480px) {
+    .review-players-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+    }
+
+    .review-content {
+        padding: 12px;
+    }
+}
+
 /* ===== Undo Float Button ===== */
 .undo-float {
     position: fixed;

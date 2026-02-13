@@ -429,9 +429,10 @@ function confirmSaveWithResult() {
     document.getElementById('resultPickerOverlay').classList.add('overlay-active');
 }
 
-function saveWithResult(result) {
+async function saveWithResult(result) {
     document.getElementById('resultPickerOverlay').classList.remove('overlay-active');
-    saveToHistory(result);
+    var game = await saveToHistory(result);
+    if (game) openReview(game);
 }
 
 function cancelResultPicker() {
@@ -706,7 +707,7 @@ function hideHistory() {
 }
 
 async function saveToHistory(result) {
-    if (!selectedConfig || players.length === 0) return;
+    if (!selectedConfig || players.length === 0) return null;
 
     var game = {
         id: Date.now(),
@@ -751,6 +752,8 @@ async function saveToHistory(result) {
         saveLocalHistory(game);
         showToast('已保存到本地', 'success');
     }
+
+    return game;
 }
 
 function saveLocalHistory(game) {
@@ -838,49 +841,10 @@ function renderHistory() {
     }).join('');
 }
 
-async function viewHistoryGame(id) {
+function viewHistoryGame(id) {
     var game = gameHistory.find(function (g) { return String(g.id) === String(id); });
     if (!game) return;
-
-    for (var count in GAME_CONFIGS) {
-        var cfg = GAME_CONFIGS[count].find(function (c) { return c.name === game.config_name; });
-        if (cfg) {
-            selectedConfig = cfg;
-            selectedPlayerCount = parseInt(count);
-            break;
-        }
-    }
-
-    players = game.players.map(function (p) {
-        if (p.confirmed === undefined) p.confirmed = false;
-        if (p.camp === 'good') p.camp = 'god';
-        return p;
-    });
-    hasSheriff = game.has_sheriff;
-    gameEvents = game.game_events || [];
-    undoStack = [];
-
-    // Restore round state from events or defaults
-    currentRound = 1;
-    currentPhase = 'night';
-    if (gameEvents.length > 0) {
-        var lastPhaseEvt = null;
-        for (var i = gameEvents.length - 1; i >= 0; i--) {
-            if (gameEvents[i].type === 'phase_change') {
-                lastPhaseEvt = gameEvents[i];
-                break;
-            }
-        }
-        if (lastPhaseEvt) {
-            currentRound = lastPhaseEvt.round;
-            currentPhase = lastPhaseEvt.phase;
-        }
-    }
-
-    document.getElementById('gameNotes').value = game.notes || '';
-    showGame();
-    renderPlayers();
-    updateStats();
+    openReview(game);
 }
 
 async function deleteHistory(id, isCloud) {
@@ -901,6 +865,138 @@ async function deleteHistory(id, isCloud) {
             showToast('已删除本地记录', 'success');
         }
     });
+}
+
+// ===== Review =====
+function buildReviewTimeline(gamePlayers) {
+    var phases = {};
+    gamePlayers.forEach(function (p) {
+        if (!p.alive && p.deathRound) {
+            var key = p.deathRound + '_' + (p.deathPhase || 'night');
+            if (!phases[key]) {
+                phases[key] = { round: p.deathRound, phase: p.deathPhase || 'night', deaths: [] };
+            }
+            phases[key].deaths.push(p);
+        }
+    });
+
+    // Find max round from deaths or default to 1
+    var maxRound = 1;
+    gamePlayers.forEach(function (p) {
+        if (p.deathRound && p.deathRound > maxRound) maxRound = p.deathRound;
+    });
+
+    var timeline = [];
+    for (var r = 1; r <= maxRound; r++) {
+        var nightKey = r + '_night';
+        var dayKey = r + '_day';
+        timeline.push(phases[nightKey] || { round: r, phase: 'night', deaths: [] });
+        timeline.push(phases[dayKey] || { round: r, phase: 'day', deaths: [] });
+    }
+
+    // Remove trailing empty phases
+    while (timeline.length > 0 && timeline[timeline.length - 1].deaths.length === 0) {
+        timeline.pop();
+    }
+
+    return timeline;
+}
+
+function renderReviewContent(gameData) {
+    var resultLabels = {
+        'good_win': { text: '😇 好人阵营胜利', cls: 'result-good' },
+        'wolf_win': { text: '🐺 狼人阵营胜利', cls: 'result-wolf' },
+        'draw': { text: '🤝 平局', cls: 'result-draw' }
+    };
+
+    var html = '';
+
+    // Result banner
+    if (gameData.result && resultLabels[gameData.result]) {
+        var r = resultLabels[gameData.result];
+        html += '<div class="review-result ' + r.cls + '">' + r.text + '</div>';
+    }
+
+    // Timeline
+    var timeline = buildReviewTimeline(gameData.players);
+    if (timeline.length > 0) {
+        html += '<div><div class="review-section-title">⏱ 死亡时间线</div>';
+        html += '<div class="review-timeline">';
+        timeline.forEach(function (phase) {
+            var phaseIcon = phase.phase === 'night' ? '🌙' : '☀️';
+            var phaseText = phase.phase === 'night' ? '夜' : '天';
+            var emptyClass = phase.deaths.length === 0 ? ' empty' : '';
+            var phaseClass = phase.phase === 'night' ? ' night' : ' day';
+
+            html += '<div class="review-round' + emptyClass + phaseClass + '">';
+            html += '<div class="review-round-title">第' + phase.round + phaseText + ' ' + phaseIcon + '</div>';
+
+            if (phase.deaths.length === 0) {
+                html += '<span class="review-peace">平安</span>';
+            } else {
+                phase.deaths.forEach(function (p) {
+                    var roleInfo = p.role !== 'unknown' ? ROLES[p.role] : null;
+                    var campClass = p.camp !== 'unknown' ? ' camp-' + p.camp : '';
+                    var roleName = roleInfo ? roleInfo.icon + ' ' + roleInfo.name : '❓ 未知';
+                    var reasonText = p.deathReason ? getDeathReasonLabel(p.deathReason) : '';
+
+                    html += '<div class="review-death-item' + campClass + '">';
+                    html += '<span class="review-death-num">' + p.id + '号</span>';
+                    html += '<span class="review-death-role">' + roleName + '</span>';
+                    if (reasonText) html += '<span class="review-death-reason">' + reasonText + '</span>';
+                    html += '</div>';
+                });
+            }
+            html += '</div>';
+        });
+        html += '</div></div>';
+    }
+
+    // All players identity grid
+    html += '<div><div class="review-section-title">🎭 玩家身份</div>';
+    html += '<div class="review-players-grid">';
+    gameData.players.forEach(function (p) {
+        var roleInfo = p.role !== 'unknown' ? ROLES[p.role] : null;
+        var campClass = p.camp !== 'unknown' ? ' camp-' + p.camp : '';
+        var deadClass = !p.alive ? ' dead' : '';
+        var icon = roleInfo ? roleInfo.icon : '❓';
+        var name = roleInfo ? roleInfo.name : '未知';
+
+        html += '<div class="review-player-card' + campClass + deadClass + '">';
+        html += '<span class="review-player-num">' + p.id + '号</span>';
+        html += '<span class="review-player-icon">' + icon + '</span>';
+        html += '<span class="review-player-name">' + name + '</span>';
+        if (!p.alive && p.deathReason) {
+            var shortReason = {
+                'vote': '🗳️投票', 'wolf_kill': '🐺狼刀', 'witch_poison': '🧙‍♀️毒杀',
+                'hunter_shot': '🏹猎人', 'white_wolf_boom': '👑自爆', 'other': '❓其他'
+            };
+            html += '<span class="review-player-death">' + (shortReason[p.deathReason] || p.deathReason) + '</span>';
+        }
+        html += '</div>';
+    });
+    html += '</div></div>';
+
+    // Notes
+    if (gameData.notes) {
+        html += '<div><div class="review-section-title">📝 笔记</div>';
+        html += '<div style="padding:10px 14px;background:var(--bg2);border-radius:8px;font-size:0.9rem;color:var(--text2);white-space:pre-wrap;">' + escapeHtml(gameData.notes) + '</div>';
+        html += '</div>';
+    }
+
+    return html;
+}
+
+function openReview(gameData) {
+    var configText = gameData.player_count + '人 ' + gameData.config_name;
+    if (gameData.date) configText += ' · ' + gameData.date;
+    document.getElementById('reviewConfig').textContent = configText;
+    document.getElementById('reviewContent').innerHTML = renderReviewContent(gameData);
+    document.getElementById('reviewOverlay').classList.add('overlay-active');
+}
+
+function closeReview() {
+    document.getElementById('reviewOverlay').classList.remove('overlay-active');
 }
 
 // ===== Persistence =====
