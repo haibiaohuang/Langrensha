@@ -77,6 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             try { speechSynthesis.getVoices(); } catch (e) {}
         }
 
+        applyTheme(localStorage.getItem('werewolfTheme') || 'dark');
         loadGameState();
         loadLocalHistory();
         setupEventListeners();
@@ -127,6 +128,7 @@ function setupEventListeners() {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             selectedPlayerCount = parseInt(tab.dataset.count);
+            selectedConfig = null;
             renderConfigOptions();
         });
     });
@@ -671,10 +673,14 @@ function toggleStatus(id) {
 }
 
 function toggleSheriff(id) {
-    pushUndo(id + '号 设为警长');
-    players.forEach(function (p) { p.sheriff = false; });
     var p = players.find(function (x) { return x.id === id; });
-    if (p) { p.sheriff = true; renderPlayers(); saveGameState(); }
+    if (!p) return;
+    var wasSheriff = p.sheriff;
+    pushUndo(id + '号 ' + (wasSheriff ? '取消警长' : '设为警长'));
+    players.forEach(function (pl) { pl.sheriff = false; });
+    if (!wasSheriff) p.sheriff = true;
+    renderPlayers();
+    saveGameState();
 }
 
 function toggleConfirmed(id) {
@@ -1036,29 +1042,331 @@ function closeReview() {
 }
 
 // ===== Judge Assistant =====
+var JudgeSFX = {
+    ctx: null,
+    enabled: true,
+    ambientNodes: null,
+
+    ensureContext: function() {
+        if (!this.ctx || this.ctx.state === 'closed') {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+    },
+
+    play: function(name) {
+        if (!this.enabled) return;
+        try {
+            this.ensureContext();
+            if (this[name]) this[name]();
+        } catch (e) {
+            console.warn('SFX error:', name, e);
+        }
+    },
+
+    nightBell: function() {
+        var ctx = this.ctx;
+        var now = ctx.currentTime;
+        var master = ctx.createGain();
+        master.gain.setValueAtTime(0.35, now);
+        master.gain.exponentialRampToValueAtTime(0.001, now + 3);
+        master.connect(ctx.destination);
+
+        [110, 220, 330].forEach(function(freq, i) {
+            var osc = ctx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            var g = ctx.createGain();
+            g.gain.value = 0.3 - i * 0.08;
+            osc.connect(g);
+            g.connect(master);
+            osc.start(now);
+            osc.stop(now + 3);
+        });
+    },
+
+    wolfGrowl: function() {
+        var ctx = this.ctx;
+        var now = ctx.currentTime;
+        var osc = ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(70, now);
+        osc.frequency.linearRampToValueAtTime(100, now + 0.4);
+        osc.frequency.linearRampToValueAtTime(55, now + 1.5);
+
+        var filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 180;
+        filter.Q.value = 8;
+
+        var gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 1.8);
+    },
+
+    charmSpell: function() {
+        var ctx = this.ctx;
+        var now = ctx.currentTime;
+        var osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.linearRampToValueAtTime(700, now + 0.5);
+        osc.frequency.linearRampToValueAtTime(500, now + 1.2);
+
+        var vibrato = ctx.createOscillator();
+        vibrato.frequency.value = 6;
+        var vibGain = ctx.createGain();
+        vibGain.gain.value = 15;
+        vibrato.connect(vibGain);
+        vibGain.connect(osc.frequency);
+        vibrato.start(now);
+        vibrato.stop(now + 1.5);
+
+        var gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 1.5);
+    },
+
+    witchBrew: function() {
+        var ctx = this.ctx;
+        var now = ctx.currentTime;
+        for (var i = 0; i < 6; i++) {
+            var osc = ctx.createOscillator();
+            osc.type = 'sine';
+            var freq = 300 + Math.random() * 500;
+            var t = now + i * 0.15;
+            osc.frequency.setValueAtTime(freq, t);
+            osc.frequency.exponentialRampToValueAtTime(freq * 0.5, t + 0.12);
+
+            var gain = ctx.createGain();
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.setValueAtTime(0.15, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.15);
+        }
+    },
+
+    seerReveal: function() {
+        var ctx = this.ctx;
+        var now = ctx.currentTime;
+        var master = ctx.createGain();
+        master.gain.setValueAtTime(0.2, now);
+        master.gain.exponentialRampToValueAtTime(0.001, now + 2);
+        master.connect(ctx.destination);
+
+        [880, 1100, 1320].forEach(function(freq, i) {
+            var osc = ctx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            var g = ctx.createGain();
+            g.gain.value = 0.25 - i * 0.05;
+            osc.connect(g);
+            g.connect(master);
+            osc.start(now);
+            osc.stop(now + 2);
+        });
+    },
+
+    guardShield: function() {
+        var ctx = this.ctx;
+        var now = ctx.currentTime;
+
+        // Noise burst through bandpass
+        var bufferSize = ctx.sampleRate * 0.15;
+        var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        var data = buffer.getChannelData(0);
+        for (var i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+        var noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+        var bandpass = ctx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.value = 800;
+        bandpass.Q.value = 2;
+        var noiseGain = ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.3, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        noise.connect(bandpass);
+        bandpass.connect(noiseGain);
+        noiseGain.connect(ctx.destination);
+        noise.start(now);
+
+        // Metallic tone
+        var osc = ctx.createOscillator();
+        osc.type = 'square';
+        osc.frequency.value = 350;
+        var oscGain = ctx.createGain();
+        oscGain.gain.setValueAtTime(0.15, now);
+        oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+        osc.connect(oscGain);
+        oscGain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.8);
+    },
+
+    dawnChime: function() {
+        var ctx = this.ctx;
+        var now = ctx.currentTime;
+        [440, 550, 660, 880].forEach(function(freq, i) {
+            var osc = ctx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            var gain = ctx.createGain();
+            var t = now + i * 0.2;
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.setValueAtTime(0.2, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.6);
+        });
+    },
+
+    deathGong: function() {
+        var ctx = this.ctx;
+        var now = ctx.currentTime;
+        var master = ctx.createGain();
+        master.gain.setValueAtTime(0.35, now);
+        master.gain.exponentialRampToValueAtTime(0.001, now + 4);
+        master.connect(ctx.destination);
+
+        [80, 120, 160].forEach(function(freq, i) {
+            var osc = ctx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            var g = ctx.createGain();
+            g.gain.value = 0.3 - i * 0.08;
+            osc.connect(g);
+            g.connect(master);
+            osc.start(now);
+            osc.stop(now + 4);
+        });
+    },
+
+    voteHeartbeat: function() {
+        var ctx = this.ctx;
+        var now = ctx.currentTime;
+        for (var beat = 0; beat < 3; beat++) {
+            var t = now + beat * 0.6;
+            var osc = ctx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.value = 60;
+            var gain = ctx.createGain();
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.3);
+        }
+    },
+
+    selectDing: function() {
+        var ctx = this.ctx;
+        var now = ctx.currentTime;
+        var osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = 1200;
+        var gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.3);
+    },
+
+    startNightAmbient: function() {
+        if (!this.enabled) return;
+        this.stopAmbient();
+        try {
+            this.ensureContext();
+            var ctx = this.ctx;
+            var now = ctx.currentTime;
+            var master = ctx.createGain();
+            master.gain.setValueAtTime(0, now);
+            master.gain.linearRampToValueAtTime(0.08, now + 2);
+            master.connect(ctx.destination);
+
+            var oscs = [];
+            [55, 57, 110].forEach(function(freq) {
+                var osc = ctx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                var g = ctx.createGain();
+                g.gain.value = 0.3;
+                osc.connect(g);
+                g.connect(master);
+                osc.start(now);
+                oscs.push(osc);
+            });
+
+            this.ambientNodes = { master: master, oscs: oscs };
+        } catch (e) {
+            console.warn('Ambient SFX error:', e);
+        }
+    },
+
+    stopAmbient: function() {
+        if (!this.ambientNodes) return;
+        try {
+            var ctx = this.ctx;
+            var now = ctx.currentTime;
+            this.ambientNodes.master.gain.linearRampToValueAtTime(0, now + 1);
+            var oscs = this.ambientNodes.oscs;
+            setTimeout(function() {
+                oscs.forEach(function(osc) {
+                    try { osc.stop(); } catch (e) {}
+                });
+            }, 1200);
+        } catch (e) {}
+        this.ambientNodes = null;
+    }
+};
+
 const NIGHT_STEP_TEMPLATES = {
     guard: [
-        { type: 'announce', text: '守卫请睁眼', voice: '守卫请睁眼，请选择今晚要守护的玩家', icon: '🛡️' },
+        { type: 'announce', text: '守卫请睁眼', voice: '守卫请睁眼，请选择今晚要守护的玩家', icon: '🛡️', sfx: 'guardShield' },
         { type: 'guard_protect', text: '选择守护对象', icon: '🛡️' },
         { type: 'announce', text: '守卫请闭眼', voice: '守卫请闭眼', icon: '🛡️' },
     ],
     wolf: [
-        { type: 'announce', text: '狼人请睁眼', voice: '狼人请睁眼，请讨论并选择今晚要刀的玩家', icon: '🐺' },
+        { type: 'announce', text: '狼人请睁眼', voice: '狼人请睁眼，请讨论并选择今晚要刀的玩家', icon: '🐺', sfx: 'wolfGrowl' },
         { type: 'wolf_kill', text: '选择刀人对象', icon: '🐺' },
         { type: 'announce', text: '狼人请闭眼', voice: '狼人请闭眼', icon: '🐺' },
     ],
     wolf_beauty: [
-        { type: 'announce', text: '狼美人请睁眼', voice: '狼美人请睁眼', icon: '💋' },
+        { type: 'announce', text: '狼美人请睁眼', voice: '狼美人请睁眼', icon: '💋', sfx: 'charmSpell' },
         { type: 'wolf_beauty_charm', text: '选择魅惑对象', icon: '💋' },
         { type: 'announce', text: '狼美人请闭眼', voice: '狼美人请闭眼', icon: '💋' },
     ],
     witch: [
-        { type: 'announce', text: '女巫请睁眼', voice: '女巫请睁眼', icon: '🧙‍♀️' },
+        { type: 'announce', text: '女巫请睁眼', voice: '女巫请睁眼', icon: '🧙‍♀️', sfx: 'witchBrew' },
         { type: 'witch_turn', text: '女巫用药', icon: '🧙‍♀️' },
         { type: 'announce', text: '女巫请闭眼', voice: '女巫请闭眼', icon: '🧙‍♀️' },
     ],
     seer: [
-        { type: 'announce', text: '预言家请睁眼', voice: '预言家请睁眼，请选择今晚要查验的玩家', icon: '🔮' },
+        { type: 'announce', text: '预言家请睁眼', voice: '预言家请睁眼，请选择今晚要查验的玩家', icon: '🔮', sfx: 'seerReveal' },
         { type: 'seer_check', text: '选择查验对象', icon: '🔮' },
         { type: 'announce', text: '预言家请闭眼', voice: '预言家请闭眼', icon: '🔮' },
     ],
@@ -1066,7 +1374,7 @@ const NIGHT_STEP_TEMPLATES = {
 
 function buildNightSteps() {
     var steps = [];
-    steps.push({ type: 'announce', text: '天黑请闭眼', voice: '天黑请闭眼', icon: '🌙' });
+    steps.push({ type: 'announce', text: '天黑请闭眼', voice: '天黑请闭眼', icon: '🌙', sfx: 'nightBell' });
 
     var order = ['guard', 'wolf', 'wolf_beauty', 'witch', 'seer'];
     order.forEach(function (role) {
@@ -1089,23 +1397,24 @@ function buildNightSteps() {
         }
     });
 
-    steps.push({ type: 'announce', text: '天亮了请睁眼', voice: '天亮了，请大家睁眼', icon: '☀️' });
+    steps.push({ type: 'announce', text: '天亮了请睁眼', voice: '天亮了，请大家睁眼', icon: '☀️', sfx: 'dawnChime' });
     return steps;
 }
 
 function buildDaySteps() {
     var steps = [];
-    steps.push({ type: 'dawn_result', text: '公布昨晚结果', icon: '☀️' });
+    steps.push({ type: 'dawn_result', text: '公布昨晚结果', icon: '☀️', sfx: 'deathGong' });
     if (currentRound === 1 && hasSheriff) {
         steps.push({ type: 'announce', text: '警长竞选', voice: '请进行警长竞选', icon: '👮' });
     }
     steps.push({ type: 'announce', text: '开始发言', voice: '请开始自由发言', icon: '💬' });
-    steps.push({ type: 'vote', text: '投票环节', icon: '🗳️' });
+    steps.push({ type: 'vote', text: '投票环节', icon: '🗳️', sfx: 'voteHeartbeat' });
     steps.push({ type: 'end_day', text: '结束白天', icon: '🌙' });
     return steps;
 }
 
 function openJudgeAssistant() {
+    JudgeSFX.ensureContext();
     judgeRoundData = { round: currentRound, night: {}, day: {} };
     judgePhase = 'night';
     judgeSteps = buildNightSteps();
@@ -1121,6 +1430,7 @@ function closeJudgeAssistant() {
     if (window.speechSynthesis) {
         try { speechSynthesis.cancel(); } catch (e) {}
     }
+    JudgeSFX.stopAmbient();
     document.getElementById('judgeOverlay').classList.remove('overlay-active');
 }
 
@@ -1147,8 +1457,8 @@ function renderJudgeStep() {
             judgeSteps = buildDaySteps();
             judgeStepIndex = 0;
             updateJudgeRoundInfo();
+            renderJudgeStep();
         }
-        renderJudgeStep();
         return;
     }
 
@@ -1178,6 +1488,13 @@ function renderJudgeStep() {
     } else if (step.type === 'end_day') {
         renderEndDayStep(step, content, footer);
     }
+
+    // Play step SFX
+    if (step.sfx) JudgeSFX.play(step.sfx);
+
+    // Night ambient management
+    if (step.text === '天黑请闭眼') JudgeSFX.startNightAmbient();
+    if (step.text === '天亮了请睁眼' || step.type === 'dawn_result') JudgeSFX.stopAmbient();
 
     if (step.type === 'announce' && step.voice) {
         judgeSpeak(step.voice);
@@ -1286,7 +1603,7 @@ function judgeWitchAction(action) {
         grid.innerHTML =
             '<div class="judge-step-subtitle" style="margin:12px 0 8px">选择毒杀目标</div>' +
             buildPlayerGrid([], 'witch_poison') +
-            '<button class="judge-btn next" style="margin-top:10px;width:100%" onclick="judgeConfirmWitchPoison()" id="judgeConfirmBtn" style="opacity:0.4;pointer-events:none">确认毒杀 ▶</button>';
+            '<button class="judge-btn next" style="margin-top:10px;width:100%;opacity:0.4;pointer-events:none" onclick="judgeConfirmWitchPoison()" id="judgeConfirmBtn">确认毒杀 ▶</button>';
     } else {
         judgeNextStep();
     }
@@ -1378,7 +1695,7 @@ function judgeDawnAddPicker() {
     grid.innerHTML =
         '<div class="judge-step-subtitle" style="margin:12px 0 8px">选择要添加的死亡玩家</div>' +
         buildPlayerGrid(disabledIds, 'dawn_add') +
-        '<button class="judge-btn next" style="margin-top:10px;width:100%" onclick="judgeDawnAddConfirm()" id="judgeConfirmBtn" style="opacity:0.4;pointer-events:none">添加 ▶</button>';
+        '<button class="judge-btn next" style="margin-top:10px;width:100%;opacity:0.4;pointer-events:none" onclick="judgeDawnAddConfirm()" id="judgeConfirmBtn">添加 ▶</button>';
 }
 
 function judgeDawnAddConfirm() {
@@ -1501,6 +1818,7 @@ function judgeSelectPlayer(playerId, actionType) {
 
 function judgeConfirmSelection(actionType) {
     if (!judgeSelectedPlayer) return;
+    JudgeSFX.play('selectDing');
 
     if (actionType === 'wolf_kill') {
         judgeRoundData.night.wolf_kill = judgeSelectedPlayer;
@@ -1572,6 +1890,13 @@ function toggleJudgeVoice() {
     showToast(judgeVoiceEnabled ? '语音已开启' : '语音已关闭', 'info');
 }
 
+function toggleJudgeSfx() {
+    JudgeSFX.enabled = !JudgeSFX.enabled;
+    document.getElementById('judgeSfxBtn').textContent = JudgeSFX.enabled ? '🔈' : '🔇';
+    if (!JudgeSFX.enabled) JudgeSFX.stopAmbient();
+    showToast(JudgeSFX.enabled ? '音效已开启' : '音效已关闭', 'info');
+}
+
 function computeNightDeaths() {
     var deaths = [];
     var wolfTarget = judgeRoundData.night.wolf_kill;
@@ -1621,7 +1946,8 @@ function saveGameState() {
         witchSaveUsed: witchSaveUsed,
         witchPoisonUsed: witchPoisonUsed,
         lastGuardTarget: lastGuardTarget,
-        judgeVoiceEnabled: judgeVoiceEnabled
+        judgeVoiceEnabled: judgeVoiceEnabled,
+        judgeSfxEnabled: JudgeSFX.enabled
     }));
 }
 
@@ -1646,6 +1972,7 @@ function loadGameState() {
             witchPoisonUsed = s.witchPoisonUsed || false;
             lastGuardTarget = s.lastGuardTarget || null;
             if (s.judgeVoiceEnabled !== undefined) judgeVoiceEnabled = s.judgeVoiceEnabled;
+            if (s.judgeSfxEnabled !== undefined) JudgeSFX.enabled = s.judgeSfxEnabled;
             document.querySelectorAll('.tab').forEach(function (t) {
                 t.classList.toggle('active', parseInt(t.dataset.count) === selectedPlayerCount);
             });
@@ -1674,5 +2001,33 @@ function debounce(fn, ms) {
 function escapeHtml(text) {
     var d = document.createElement('div');
     d.textContent = text || '';
-    return d.innerHTML;
+    return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+
+// ===== Theme =====
+function applyTheme(theme) {
+    if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.querySelector('meta[name="theme-color"]').content = '#f2f2f7';
+        document.getElementById('themeBtn').textContent = '☀️';
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+        document.querySelector('meta[name="theme-color"]').content = '#0f0f1a';
+        document.getElementById('themeBtn').textContent = '🌙';
+    }
+}
+
+function toggleTheme() {
+    var current = document.documentElement.getAttribute('data-theme');
+    var next = current === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    localStorage.setItem('werewolfTheme', next);
+}
+
+// Load theme on startup (before DOMContentLoaded to avoid flash)
+(function() {
+    var saved = localStorage.getItem('werewolfTheme');
+    if (saved === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+    }
+})();

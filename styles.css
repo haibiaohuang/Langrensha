@@ -16,7 +16,22 @@
     --wolf: #ef4444;
     --good: #22c55e;
     --border: rgba(255, 255, 255, 0.1);
+    --shadow: none;
     --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+[data-theme="light"] {
+    --bg: #f2f2f7;
+    --bg2: #ffffff;
+    --bg3: #e5e5ea;
+    --text: #1c1c1e;
+    --text2: #636366;
+    --muted: #8e8e93;
+    --accent: #5856d6;
+    --wolf: #dc2626;
+    --good: #16a34a;
+    --border: rgba(0, 0, 0, 0.1);
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 html,
@@ -378,10 +393,11 @@ body {
 .toggle {
     width: 50px;
     height: 28px;
-    background: var(--bg3);
+    background: var(--muted);
+    border: none;
     border-radius: 14px;
     position: relative;
-    transition: background 0.2s;
+    transition: background 0.2s, box-shadow 0.2s;
 }
 
 .toggle::after {
@@ -391,17 +407,19 @@ body {
     left: 3px;
     width: 22px;
     height: 22px;
-    background: white;
+    background: var(--bg2);
     border-radius: 50%;
-    transition: transform 0.2s;
-}
-
-.toggle-row input:checked+.toggle {
-    background: var(--accent);
+    transition: transform 0.2s, background 0.2s;
 }
 
 .toggle-row input:checked+.toggle::after {
+    background: white;
     transform: translateX(22px);
+}
+
+.toggle-row input:checked+.toggle {
+    background: #22c55e;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
 }
 
 /* Start Button */
@@ -716,7 +734,7 @@ body {
 .id-confirm-btn.active {
     opacity: 1;
     color: var(--text);
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--border);
     border-color: var(--text2);
 }
 
@@ -1951,6 +1969,67 @@ body {
 
 .judge-open-btn:active {
     transform: scale(0.97);
+}
+
+/* ===== Light Theme Overrides ===== */
+[data-theme="light"] .btn-icon {
+    box-shadow: var(--shadow);
+}
+
+[data-theme="light"] .player-card {
+    box-shadow: var(--shadow);
+}
+
+[data-theme="light"] .config-item {
+    box-shadow: var(--shadow);
+}
+
+[data-theme="light"] .confirm-dialog,
+[data-theme="light"] .bottom-sheet {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .btn-google {
+    background: #fff;
+    border: 1px solid var(--border);
+    color: #333;
+}
+
+[data-theme="light"] .logo h1 {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+[data-theme="light"] .user-info {
+    background: rgba(88, 86, 214, 0.12);
+}
+
+[data-theme="light"] .judge-open-btn {
+    border-color: rgba(88, 86, 214, 0.3);
+    background: rgba(88, 86, 214, 0.1);
+    color: #5856d6;
+}
+
+[data-theme="light"] .player-card.dead {
+    opacity: 0.45;
+    background: rgba(229, 229, 234, 0.8);
+}
+
+[data-theme="light"] .player-card.confirmed {
+    background: rgba(245, 245, 247, 0.95);
+}
+
+[data-theme="light"] .player-card.confirmed.camp-god {
+    background: rgba(59, 130, 246, 0.08);
+}
+
+[data-theme="light"] .player-card.confirmed.camp-villager {
+    background: rgba(34, 197, 94, 0.08);
+}
+
+[data-theme="light"] .player-card.confirmed.camp-wolf {
+    background: rgba(239, 68, 68, 0.08);
 }
 
 /* ===== Mobile Optimizations ===== */
