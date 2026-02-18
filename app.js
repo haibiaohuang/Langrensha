@@ -38,6 +38,15 @@ const ROLES = {
     unknown: { name: '未知', icon: '❓', short: '?', camp: 'unknown' }
 };
 
+const DEATH_REASONS = {
+    'vote': { icon: '🗳️', label: '投票出局', short: '🗳️投票' },
+    'wolf_kill': { icon: '🐺', label: '狼刀', short: '🐺狼刀' },
+    'witch_poison': { icon: '🧙‍♀️', label: '女巫毒杀', short: '🧙‍♀️毒杀' },
+    'hunter_shot': { icon: '🏹', label: '猎人带走', short: '🏹猎人' },
+    'white_wolf_boom': { icon: '👑', label: '白狼王自爆', short: '👑自爆' },
+    'other': { icon: '❓', label: '其他', short: '❓其他' }
+};
+
 // ===== State =====
 let players = [];
 let selectedPlayerCount = 12;
@@ -416,9 +425,11 @@ function cancelDeathPicker() {
 }
 
 function confirmDeath(reason) {
+    if (!guardAction()) return;
     var p = players.find(function (x) { return x.id === deathPickerTarget; });
     if (!p) return;
 
+    vibrate(30);
     pushUndo(p.id + '号 标记死亡');
     p.alive = false;
     p.deathReason = reason;
@@ -443,19 +454,13 @@ function confirmDeath(reason) {
 }
 
 function getDeathReasonLabel(reason) {
-    var labels = {
-        'vote': '🗳️ 投票出局',
-        'wolf_kill': '🐺 狼刀',
-        'witch_poison': '🧙‍♀️ 女巫毒杀',
-        'hunter_shot': '🏹 猎人带走',
-        'white_wolf_boom': '👑 白狼王自爆',
-        'other': '❓ 其他'
-    };
-    return labels[reason] || reason;
+    var r = DEATH_REASONS[reason];
+    return r ? r.icon + ' ' + r.label : reason;
 }
 
 // ===== Game Result =====
 function confirmSaveWithResult() {
+    if (!guardAction()) return;
     if (!selectedConfig || players.length === 0) return;
     document.getElementById('resultPickerOverlay').classList.add('overlay-active');
 }
@@ -493,6 +498,7 @@ function showUndoButton() {
 
 function performUndo() {
     if (undoStack.length === 0) return;
+    vibrate([15, 50, 15]);
     var state = undoStack.pop();
     players = state.players;
     currentRound = state.currentRound;
@@ -590,8 +596,9 @@ function renderPlayers() {
         var confirmedClass = p.confirmed ? ' confirmed' : '';
         var campCardClass = p.camp !== 'unknown' ? ' camp-' + p.camp : '';
         var confirmBtnClass = 'id-confirm-btn' + (p.confirmed ? ' active' : '') + (p.confirmed && p.camp !== 'unknown' ? ' ' + p.camp : '');
+        var justDiedClass = !p.alive && p.deathRound === currentRound ? ' just-died' : '';
 
-        return '<div class="player-card ' + (p.alive ? '' : 'dead') + confirmedClass + campCardClass + '" data-id="' + p.id + '">' +
+        return '<div class="player-card ' + (p.alive ? '' : 'dead') + justDiedClass + confirmedClass + campCardClass + '" data-id="' + p.id + '">' +
             '<div class="card-row-top">' +
                 '<div class="player-num">' +
                     '<span class="num">' + p.id + '</span>' +
@@ -610,6 +617,11 @@ function renderPlayers() {
             '<div class="card-row-bottom">' +
                 deathInfo +
                 '<input type="text" class="note-input" value="' + escapeHtml(p.note) + '" placeholder="备注" onchange="setNote(' + p.id + ', this.value)">' +
+                '<div class="note-chips">' +
+                ['查杀','金水','银水','好人','悍跳','首刀','自刀','对跳'].map(function(chip) {
+                    return '<button class="note-chip" onclick="appendNote(' + p.id + ',\'' + chip + '\')">' + chip + '</button>';
+                }).join('') +
+                '</div>' +
             '</div>' +
         '</div>';
     }).join('');
@@ -640,6 +652,7 @@ function setRole(id, role) {
 function setCamp(id, camp) {
     var p = players.find(function (x) { return x.id === id; });
     if (p) {
+        vibrate(15);
         pushUndo(p.id + '号 阵营改为 ' + (camp === 'wolf' ? '狼人' : camp === 'god' ? '神' : camp === 'villager' ? '民' : '未知'));
         p.camp = camp;
         renderPlayers();
@@ -652,6 +665,16 @@ function setCamp(id, camp) {
 function setNote(id, note) {
     var p = players.find(function (x) { return x.id === id; });
     if (p) { p.note = note; saveGameState(); }
+}
+
+function appendNote(id, chip) {
+    var p = players.find(function (x) { return x.id === id; });
+    if (!p) return;
+    p.note = p.note ? p.note + ' ' + chip : chip;
+    var input = document.querySelector('.player-card[data-id="' + id + '"] .note-input');
+    if (input) input.value = p.note;
+    vibrate(10);
+    saveGameState();
 }
 
 function toggleStatus(id) {
@@ -695,14 +718,17 @@ function toggleConfirmed(id) {
 function updateStats() {
     var alive = players.filter(function (p) { return p.alive; }).length;
     var dead = players.filter(function (p) { return !p.alive; }).length;
-    var wolves = players.filter(function (p) { return p.camp === 'wolf'; }).length;
-    var gods = players.filter(function (p) { return p.camp === 'god'; }).length;
-    var villagers = players.filter(function (p) { return p.camp === 'villager'; }).length;
+    var wolvesAlive = players.filter(function (p) { return p.camp === 'wolf' && p.alive; }).length;
+    var wolvesTotal = players.filter(function (p) { return p.camp === 'wolf'; }).length;
+    var godsAlive = players.filter(function (p) { return p.camp === 'god' && p.alive; }).length;
+    var godsTotal = players.filter(function (p) { return p.camp === 'god'; }).length;
+    var villagersAlive = players.filter(function (p) { return p.camp === 'villager' && p.alive; }).length;
+    var villagersTotal = players.filter(function (p) { return p.camp === 'villager'; }).length;
     document.getElementById('aliveCount').textContent = alive;
     document.getElementById('deadCount').textContent = dead;
-    document.getElementById('wolfCount').textContent = wolves;
-    document.getElementById('godCount').textContent = gods;
-    document.getElementById('villagerCount').textContent = villagers;
+    document.getElementById('wolfCount').textContent = wolvesTotal ? wolvesAlive + '/' + wolvesTotal : '0';
+    document.getElementById('godCount').textContent = godsTotal ? godsAlive + '/' + godsTotal : '0';
+    document.getElementById('villagerCount').textContent = villagersTotal ? villagersAlive + '/' + villagersTotal : '0';
 }
 
 function resetGame() {
@@ -1009,11 +1035,8 @@ function renderReviewContent(gameData) {
         html += '<span class="review-player-icon">' + icon + '</span>';
         html += '<span class="review-player-name">' + name + '</span>';
         if (!p.alive && p.deathReason) {
-            var shortReason = {
-                'vote': '🗳️投票', 'wolf_kill': '🐺狼刀', 'witch_poison': '🧙‍♀️毒杀',
-                'hunter_shot': '🏹猎人', 'white_wolf_boom': '👑自爆', 'other': '❓其他'
-            };
-            html += '<span class="review-player-death">' + (shortReason[p.deathReason] || p.deathReason) + '</span>';
+            var dr = DEATH_REASONS[p.deathReason];
+            html += '<span class="review-player-death">' + (dr ? dr.short : p.deathReason) + '</span>';
         }
         html += '</div>';
     });
@@ -1029,7 +1052,10 @@ function renderReviewContent(gameData) {
     return html;
 }
 
+var _currentReviewData = null;
+
 function openReview(gameData) {
+    _currentReviewData = gameData;
     var configText = gameData.player_count + '人 ' + gameData.config_name;
     if (gameData.date) configText += ' · ' + gameData.date;
     document.getElementById('reviewConfig').textContent = configText;
@@ -1039,6 +1065,83 @@ function openReview(gameData) {
 
 function closeReview() {
     document.getElementById('reviewOverlay').classList.remove('overlay-active');
+}
+
+function copyReviewText(gameData) {
+    var text = '【狼人杀复盘】\n';
+    text += gameData.player_count + '人 ' + gameData.config_name;
+    if (gameData.date) text += ' · ' + gameData.date;
+    text += '\n';
+
+    if (gameData.result) {
+        var labels = { 'good_win': '好人胜', 'wolf_win': '狼人胜', 'draw': '平局' };
+        text += '结果：' + (labels[gameData.result] || '') + '\n';
+    }
+
+    text += '\n玩家身份：\n';
+    gameData.players.forEach(function (p) {
+        var roleInfo = p.role !== 'unknown' ? ROLES[p.role] : null;
+        var status = p.alive ? '存活' : '死亡';
+        text += p.id + '号 ' + (roleInfo ? roleInfo.name : '未知') + ' ' + status;
+        if (!p.alive && p.deathReason) {
+            var dr = DEATH_REASONS[p.deathReason];
+            text += '(' + (dr ? dr.label : p.deathReason) + ')';
+        }
+        text += '\n';
+    });
+
+    var timeline = buildReviewTimeline(gameData.players);
+    if (timeline.length > 0) {
+        text += '\n死亡时间线：\n';
+        timeline.forEach(function (phase) {
+            var phaseText = phase.phase === 'night' ? '夜' : '天';
+            if (phase.deaths.length > 0) {
+                text += '第' + phase.round + phaseText + '：';
+                text += phase.deaths.map(function (p) {
+                    var roleInfo = p.role !== 'unknown' ? ROLES[p.role] : null;
+                    var dr = DEATH_REASONS[p.deathReason];
+                    return p.id + '号' + (roleInfo ? roleInfo.name : '') + (dr ? '(' + dr.label + ')' : '');
+                }).join('，');
+                text += '\n';
+            }
+        });
+    }
+
+    navigator.clipboard.writeText(text).then(function () {
+        showToast('已复制到剪贴板', 'success');
+    }).catch(function () {
+        showToast('复制失败', 'error');
+    });
+}
+
+function copyCurrentGame() {
+    if (!selectedConfig || players.length === 0) return;
+    var text = '【狼人杀当前局面】\n';
+    text += players.length + '人 ' + selectedConfig.name + ' 第' + currentRound + (currentPhase === 'night' ? '夜' : '天') + '\n';
+
+    var alive = players.filter(function (p) { return p.alive; }).length;
+    var dead = players.filter(function (p) { return !p.alive; }).length;
+    text += '存活' + alive + '人 死亡' + dead + '人\n\n';
+
+    players.forEach(function (p) {
+        var roleInfo = p.role !== 'unknown' ? ROLES[p.role] : null;
+        var campLabel = { wolf: '🐺', god: '🔮', villager: '👨‍🌾', unknown: '❓' };
+        text += p.id + '号 ' + (campLabel[p.camp] || '❓');
+        if (roleInfo) text += roleInfo.name;
+        text += p.alive ? ' 存活' : ' 死亡';
+        if (!p.alive && p.deathReason) {
+            var dr = DEATH_REASONS[p.deathReason];
+            text += '(' + (dr ? dr.label : p.deathReason) + ')';
+        }
+        if (p.note) text += ' [' + p.note + ']';
+        text += '\n';
+    });
+
+    navigator.clipboard.writeText(text).then(function () {
+        showToast('已复制到剪贴板', 'success');
+    }).catch(function () {
+        showToast('复制失败', 'error');
+    });
 }
 
 // ===== Judge Assistant =====
@@ -1661,7 +1764,8 @@ function renderDawnResultStep(step, content, footer) {
     } else {
         html += '<div class="judge-dawn-list">';
         judgeDawnDeaths.forEach(function (d, idx) {
-            var reasonLabel = d.reason === 'wolf_kill' ? '🐺 狼刀' : d.reason === 'witch_poison' ? '🧪 女巫毒杀' : d.reason;
+            var drInfo = DEATH_REASONS[d.reason];
+            var reasonLabel = drInfo ? drInfo.icon + ' ' + drInfo.label : d.reason;
             html += '<div class="judge-dawn-item">' +
                 '<span class="dawn-info">' + d.id + '号</span>' +
                 '<span class="dawn-reason">' + reasonLabel + '</span>' +
@@ -1832,6 +1936,7 @@ function judgeConfirmSelection(actionType) {
         showToast('狼美人魅惑了 ' + judgeSelectedPlayer + '号', 'info');
     } else if (actionType === 'vote') {
         judgeRoundData.day.vote_out = judgeSelectedPlayer;
+        vibrate(30);
         var vp = players.find(function (x) { return x.id === judgeSelectedPlayer; });
         if (vp) {
             pushUndo(vp.id + '号 投票出局');
@@ -1989,6 +2094,18 @@ function loadGameState() {
 }
 
 // ===== Utilities =====
+function vibrate(ms) {
+    if (navigator.vibrate) navigator.vibrate(ms || 15);
+}
+
+var _lastActionTime = 0;
+function guardAction() {
+    var now = Date.now();
+    if (now - _lastActionTime < 300) return false;
+    _lastActionTime = now;
+    return true;
+}
+
 function debounce(fn, ms) {
     var t;
     return function () {

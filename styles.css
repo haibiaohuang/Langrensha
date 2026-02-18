@@ -589,6 +589,16 @@ body {
     background: rgba(15, 15, 26, 0.8);
 }
 
+.player-card.just-died {
+    opacity: 0.7;
+    animation: justDiedPulse 1.5s ease infinite;
+}
+
+@keyframes justDiedPulse {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.4); }
+}
+
 .card-row-top {
     display: flex;
     align-items: center;
@@ -696,6 +706,31 @@ body {
 
 .note-input::placeholder {
     color: var(--muted);
+}
+
+/* Note Chips */
+.note-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    width: 100%;
+    margin-top: 4px;
+}
+
+.note-chip {
+    padding: 3px 8px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text2);
+    font-size: 0.75rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.note-chip:active {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: var(--accent);
 }
 
 /* Status Button */
@@ -2014,6 +2049,10 @@ body {
 [data-theme="light"] .player-card.dead {
     opacity: 0.45;
     background: rgba(229, 229, 234, 0.8);
+}
+
+[data-theme="light"] .player-card.just-died {
+    opacity: 0.7;
 }
 
 [data-theme="light"] .player-card.confirmed {

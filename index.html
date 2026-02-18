@@ -11,7 +11,7 @@
     <title>狼人杀笔记</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <link rel="stylesheet" href="styles.css?v=2">
+    <link rel="stylesheet" href="styles.css?v=2026.02.14a">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
     <script>
         window.onerror = function (msg, url, line, col, error) {
@@ -123,6 +123,7 @@
                 <div class="game-top">
                     <div class="config-info" id="currentConfigInfo"></div>
                     <div class="game-top-btns">
+                        <button class="btn-small" onclick="copyCurrentGame()">📋</button>
                         <button class="btn-small" onclick="openQuickReveal()">🃏 翻牌</button>
                         <button class="btn-small save" onclick="confirmSaveWithResult()">💾 保存</button>
                         <button class="btn-small" onclick="showSetup()">换板子</button>
@@ -213,6 +214,7 @@
             <div class="review-header">
                 <h3>📋 复盘</h3>
                 <span class="review-config" id="reviewConfig"></span>
+                <button class="btn-small" onclick="if(_currentReviewData)copyReviewText(_currentReviewData)">📋 复制</button>
                 <button class="btn-close" onclick="closeReview()">✕</button>
             </div>
             <div class="review-content" id="reviewContent"></div>
@@ -260,7 +262,7 @@
     <!-- Undo Float Button -->
     <button class="undo-float" id="undoBtn" onclick="performUndo()">↩️ 撤销</button>
 
-    <script src="app.js?v=2"></script>
+    <script src="app.js?v=2026.02.14a"></script>
 </body>
 
 </html>
