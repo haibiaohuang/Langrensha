@@ -2006,6 +2006,93 @@ body {
     transform: scale(0.97);
 }
 
+/* ===== Judge Timer ===== */
+.judge-timer-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 400px;
+    margin-top: 8px;
+}
+
+.judge-timer-presets {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.judge-timer-preset {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    color: var(--text2);
+    border-radius: 16px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.judge-timer-preset:active {
+    transform: scale(0.95);
+}
+
+.judge-timer-preset.active {
+    border-color: var(--accent);
+    background: rgba(99, 102, 241, 0.2);
+    color: var(--accent);
+}
+
+.judge-timer-display {
+    font-size: 3.5rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 2px;
+    color: var(--text);
+    transition: color 0.3s;
+}
+
+.judge-timer-display.timer-warning {
+    color: #f59e0b;
+    animation: timerPulse 1s ease-in-out infinite;
+}
+
+.judge-timer-display.timer-expired {
+    color: var(--wolf);
+}
+
+@keyframes timerPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.judge-timer-controls {
+    display: flex;
+    gap: 12px;
+}
+
+.judge-timer-btn {
+    width: 52px;
+    height: 52px;
+    border: 2px solid var(--border);
+    background: var(--bg2);
+    color: var(--text);
+    border-radius: 50%;
+    font-size: 1.3rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+.judge-timer-btn:active {
+    transform: scale(0.92);
+    background: rgba(99, 102, 241, 0.2);
+}
+
 /* ===== Light Theme Overrides ===== */
 [data-theme="light"] .btn-icon {
     box-shadow: var(--shadow);

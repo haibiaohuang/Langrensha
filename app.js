@@ -22,6 +22,21 @@ const GAME_CONFIGS = {
         { id: '12_wolf_beauty', name: '狼美人局', desc: '3狼1美人 4神4民', wolves: ['wolf', 'wolf', 'wolf', 'wolf_beauty'], gods: ['seer', 'witch', 'hunter', 'guard'], villagers: 4 },
         { id: '12_white_wolf', name: '白狼王局', desc: '3狼1白狼 4神4民', wolves: ['wolf', 'wolf', 'wolf', 'white_wolf_king'], gods: ['seer', 'witch', 'hunter', 'guard'], villagers: 4 },
         { id: '12_double', name: '双狼局', desc: '2狼1美人1白狼 4神4民', wolves: ['wolf', 'wolf', 'wolf_beauty', 'white_wolf_king'], gods: ['seer', 'witch', 'hunter', 'guard'], villagers: 4 }
+    ],
+    14: [
+        { id: '14_standard', name: '标准局', desc: '4狼4神6民', wolves: ['wolf', 'wolf', 'wolf', 'wolf'], gods: ['seer', 'witch', 'hunter', 'guard'], villagers: 6 },
+        { id: '14_wolf_beauty', name: '狼美人局', desc: '3狼1美人 4神6民', wolves: ['wolf', 'wolf', 'wolf', 'wolf_beauty'], gods: ['seer', 'witch', 'hunter', 'guard'], villagers: 6 },
+        { id: '14_white_wolf', name: '白狼王局', desc: '3狼1白狼 4神6民', wolves: ['wolf', 'wolf', 'wolf', 'white_wolf_king'], gods: ['seer', 'witch', 'hunter', 'guard'], villagers: 6 },
+        { id: '14_double', name: '双狼局', desc: '2狼1美人1白狼 4神6民', wolves: ['wolf', 'wolf', 'wolf_beauty', 'white_wolf_king'], gods: ['seer', 'witch', 'hunter', 'guard'], villagers: 6 },
+        { id: '14_five_gods', name: '五神局', desc: '4狼5神5民', wolves: ['wolf', 'wolf', 'wolf', 'wolf'], gods: ['seer', 'witch', 'hunter', 'guard', 'idiot'], villagers: 5 }
+    ],
+    16: [
+        { id: '16_standard', name: '标准局', desc: '4狼4神8民', wolves: ['wolf', 'wolf', 'wolf', 'wolf'], gods: ['seer', 'witch', 'hunter', 'guard'], villagers: 8 },
+        { id: '16_wolf_beauty', name: '狼美人局', desc: '3狼1美人 4神8民', wolves: ['wolf', 'wolf', 'wolf', 'wolf_beauty'], gods: ['seer', 'witch', 'hunter', 'guard'], villagers: 8 },
+        { id: '16_white_wolf', name: '白狼王局', desc: '3狼1白狼 4神8民', wolves: ['wolf', 'wolf', 'wolf', 'white_wolf_king'], gods: ['seer', 'witch', 'hunter', 'guard'], villagers: 8 },
+        { id: '16_double', name: '双狼局', desc: '2狼1美人1白狼 4神8民', wolves: ['wolf', 'wolf', 'wolf_beauty', 'white_wolf_king'], gods: ['seer', 'witch', 'hunter', 'guard'], villagers: 8 },
+        { id: '16_five_wolves', name: '五狼局', desc: '5狼5神6民', wolves: ['wolf', 'wolf', 'wolf', 'wolf', 'white_wolf_king'], gods: ['seer', 'witch', 'hunter', 'guard', 'idiot'], villagers: 6 },
+        { id: '16_chaos', name: '混战局', desc: '3狼1美人1白狼 5神6民', wolves: ['wolf', 'wolf', 'wolf', 'wolf_beauty', 'white_wolf_king'], gods: ['seer', 'witch', 'hunter', 'guard', 'idiot'], villagers: 6 }
     ]
 };
 
@@ -75,6 +90,12 @@ let lastGuardTarget = null;
 let judgePhase = 'night'; // 'night' or 'day'
 let judgeSelectedPlayer = null;
 let judgeDawnDeaths = [];
+
+// ===== Judge Timer State =====
+let judgeTimerInterval = null;
+let judgeTimerSeconds = 0;
+let judgeTimerRunning = false;
+let judgeTimerDuration = 120; // default 2 minutes
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1516,6 +1537,104 @@ function buildDaySteps() {
     return steps;
 }
 
+// ===== Judge Timer Functions =====
+function judgeTimerFormat(sec) {
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function judgeTimerUpdateDisplay() {
+    var el = document.getElementById('judgeTimerDisplay');
+    if (!el) return;
+    el.textContent = judgeTimerFormat(judgeTimerSeconds);
+    if (judgeTimerSeconds <= 10 && judgeTimerSeconds > 0) {
+        el.classList.add('timer-warning');
+    } else {
+        el.classList.remove('timer-warning');
+    }
+    if (judgeTimerSeconds <= 0) {
+        el.classList.add('timer-expired');
+    } else {
+        el.classList.remove('timer-expired');
+    }
+}
+
+function judgeTimerStart() {
+    if (judgeTimerRunning) return;
+    judgeTimerRunning = true;
+    var btn = document.getElementById('judgeTimerToggleBtn');
+    if (btn) btn.textContent = '⏸';
+    judgeTimerInterval = setInterval(function () {
+        judgeTimerSeconds--;
+        judgeTimerUpdateDisplay();
+        if (judgeTimerSeconds <= 0) {
+            judgeTimerPause();
+            JudgeSFX.play('nightBell');
+            showToast('时间到！', 'warning');
+        }
+    }, 1000);
+}
+
+function judgeTimerPause() {
+    judgeTimerRunning = false;
+    clearInterval(judgeTimerInterval);
+    judgeTimerInterval = null;
+    var btn = document.getElementById('judgeTimerToggleBtn');
+    if (btn) btn.textContent = '▶';
+}
+
+function judgeTimerToggle() {
+    if (judgeTimerRunning) {
+        judgeTimerPause();
+    } else {
+        if (judgeTimerSeconds <= 0) {
+            judgeTimerSeconds = judgeTimerDuration;
+            judgeTimerUpdateDisplay();
+        }
+        judgeTimerStart();
+    }
+}
+
+function judgeTimerReset() {
+    judgeTimerPause();
+    judgeTimerSeconds = judgeTimerDuration;
+    judgeTimerUpdateDisplay();
+}
+
+function judgeTimerSetDuration(sec) {
+    judgeTimerDuration = sec;
+    judgeTimerPause();
+    judgeTimerSeconds = sec;
+    judgeTimerUpdateDisplay();
+    // Update active state on preset buttons
+    document.querySelectorAll('.judge-timer-preset').forEach(function (b) {
+        b.classList.toggle('active', parseInt(b.dataset.seconds) === sec);
+    });
+}
+
+function judgeTimerStop() {
+    judgeTimerPause();
+    judgeTimerSeconds = 0;
+}
+
+function renderJudgeTimerUI() {
+    return '<div class="judge-timer-container">' +
+        '<div class="judge-timer-presets">' +
+            '<button class="judge-timer-preset' + (judgeTimerDuration === 30 ? ' active' : '') + '" data-seconds="30" onclick="judgeTimerSetDuration(30)">30秒</button>' +
+            '<button class="judge-timer-preset' + (judgeTimerDuration === 60 ? ' active' : '') + '" data-seconds="60" onclick="judgeTimerSetDuration(60)">1分</button>' +
+            '<button class="judge-timer-preset' + (judgeTimerDuration === 90 ? ' active' : '') + '" data-seconds="90" onclick="judgeTimerSetDuration(90)">1分半</button>' +
+            '<button class="judge-timer-preset' + (judgeTimerDuration === 120 ? ' active' : '') + '" data-seconds="120" onclick="judgeTimerSetDuration(120)">2分</button>' +
+            '<button class="judge-timer-preset' + (judgeTimerDuration === 180 ? ' active' : '') + '" data-seconds="180" onclick="judgeTimerSetDuration(180)">3分</button>' +
+        '</div>' +
+        '<div class="judge-timer-display" id="judgeTimerDisplay">' + judgeTimerFormat(judgeTimerSeconds) + '</div>' +
+        '<div class="judge-timer-controls">' +
+            '<button class="judge-timer-btn" id="judgeTimerToggleBtn" onclick="judgeTimerToggle()">▶</button>' +
+            '<button class="judge-timer-btn" onclick="judgeTimerReset()">↺</button>' +
+        '</div>' +
+    '</div>';
+}
+
 function openJudgeAssistant() {
     JudgeSFX.ensureContext();
     judgeRoundData = { round: currentRound, night: {}, day: {} };
@@ -1524,6 +1643,8 @@ function openJudgeAssistant() {
     judgeStepIndex = 0;
     judgeSelectedPlayer = null;
     judgeDawnDeaths = [];
+    judgeTimerStop();
+    judgeTimerSeconds = judgeTimerDuration;
     document.getElementById('judgeOverlay').classList.add('overlay-active');
     updateJudgeRoundInfo();
     renderJudgeStep();
@@ -1534,6 +1655,7 @@ function closeJudgeAssistant() {
         try { speechSynthesis.cancel(); } catch (e) {}
     }
     JudgeSFX.stopAmbient();
+    judgeTimerStop();
     document.getElementById('judgeOverlay').classList.remove('overlay-active');
 }
 
@@ -1605,10 +1727,18 @@ function renderJudgeStep() {
 }
 
 function renderAnnounceStep(step, content, footer) {
+    var showTimer = step.text === '开始发言' || step.text === '警长竞选';
     content.innerHTML =
         '<div class="judge-step-icon">' + (step.icon || '📢') + '</div>' +
         '<div class="judge-step-text">' + step.text + '</div>' +
-        (step.voice ? '<button class="judge-replay-btn" onclick="judgeSpeak(\'' + escapeHtml(step.voice).replace(/'/g, "\\'") + '\')">🔊 重播</button>' : '');
+        (step.voice ? '<button class="judge-replay-btn" onclick="judgeSpeak(\'' + escapeHtml(step.voice).replace(/'/g, "\\'") + '\')">🔊 重播</button>' : '') +
+        (showTimer ? renderJudgeTimerUI() : '');
+
+    if (showTimer) {
+        judgeTimerPause();
+        judgeTimerSeconds = judgeTimerDuration;
+        judgeTimerUpdateDisplay();
+    }
 
     footer.innerHTML =
         '<button class="judge-btn prev" onclick="judgePrevStep()" ' + (judgeStepIndex === 0 ? 'style="visibility:hidden"' : '') + '>◀ 上一步</button>' +
@@ -1824,8 +1954,13 @@ function renderVoteStep(step, content, footer) {
     content.innerHTML =
         '<div class="judge-step-icon">' + step.icon + '</div>' +
         '<div class="judge-step-text">' + step.text + '</div>' +
+        renderJudgeTimerUI() +
         buildPlayerGrid([], 'vote') +
         '<button class="judge-action-btn skip" style="margin-top:8px;max-width:400px;width:100%" onclick="judgeSkipAction(\'vote\')">⏭ 平票/无人出局</button>';
+
+    judgeTimerPause();
+    judgeTimerSeconds = judgeTimerDuration;
+    judgeTimerUpdateDisplay();
 
     footer.innerHTML =
         '<button class="judge-btn prev" onclick="judgePrevStep()">◀ 上一步</button>' +
@@ -1860,6 +1995,7 @@ function judgeStartNextNight() {
 }
 
 function judgeNextStep() {
+    judgeTimerPause();
     judgeStepIndex++;
     if (judgeStepIndex >= judgeSteps.length) {
         if (judgePhase === 'night') {
@@ -1877,6 +2013,7 @@ function judgeNextStep() {
 }
 
 function judgePrevStep() {
+    judgeTimerPause();
     if (judgeStepIndex > 0) {
         judgeStepIndex--;
         judgeSelectedPlayer = null;
